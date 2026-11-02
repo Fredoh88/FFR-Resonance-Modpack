@@ -37,8 +37,8 @@ FFR-Resonance-Modpack/
 
 | Mod Name | Category | Summary | Documentation |
 | :--- | :--- | :--- | :--- |
-| **`FFR_AI_Optimizer`** | Traversal & Visuals | Normal (600), Fast Sprint (950), and Hyper-Dash (1400) speed modes. Auto-fades after 3s at top-center. Injects crisp visual settings and includes an **`F7`** live refresh hotkey. | [Read Docs](docs/FFR_AI_Optimizer.md) |
-| **`FFRAutoBattle`** | Combat AI | Intelligent auto-battle engine. Automatically exploits elemental weaknesses, maintains tank/DPS/healer roles based on equipped Visions, and **auto-solves Magic Pot / Citrine Pot puzzle encounters** by feeding them requested items while commanding party to Guard. | [Read Docs](docs/FFRAutoBattle.md) |
+| **`FFR_AI_Optimizer`** | Traversal & Visuals | Normal (600), Fast Sprint (950), and Hyper-Dash (1400) speed modes. Auto-fades after 1.8s at bottom-center (zero screen obstruction). Injects crisp pixel clarity settings with **`F7`** live refresh hotkey. | [Read Docs](docs/FFR_AI_Optimizer.md) |
+| **`FFRAutoBattle`** | Combat AI | Intelligent auto-battle engine. **Maximum-damage Resonance move solver** (weakness matching, stagger x2.2 multiplier, boss focus), auto-solves **Magic Pot puzzle encounters**, and native JRPG frosted in-combat HUD. | [Read Docs](docs/FFRAutoBattle.md) |
 | **`CombatTag`** | Combat UI | Real-time target acquisition highlighting and action synchronization. | [Read Docs](docs/CombatTag.md) |
 | **`LibraScanAll`** | Combat Intel | Automatically reveals elemental weaknesses and status vulnerabilities for all enemies at encounter start without spending turns or MP on Libra. | [Read Docs](docs/LibraScanAll.md) |
 | **`FFR_EnemyHPNumbers`** | Combat UI | Overlays exact numerical HP numbers (e.g. `14,250 / 25,000`) and precise stagger progress percentages over enemy health bars. | [Read Docs](docs/FFR_EnemyHPNumbers.md) |
@@ -91,11 +91,11 @@ See [INSTALLATION.md](INSTALLATION.md) for full instructions and configuration o
 
 ## ⌨️ Controls & Keybinds Cheat-Sheet
 
-* **`Shift` / Speed Key**: Cycle movement speeds:
+* **`F5`** or **`L3` (Controller Left Stick Click)**: Cycle movement speeds:
   * `[ >>> HYPER-DASH: 1400 (TURBO +133%) ]`
   * `[ >> FAST SPRINT: 950 (+58%) ]`
   * `[ > NORMAL WALK: 600 ]`
-  *(Badge automatically fades after 3 seconds)*
+  *(Unobtrusive bottom-center pill notification automatically fades after 1.8 seconds)*
 * **`F7`**: Re-apply / refresh Ultra-Crisp Pixel Art clarity profile live in-game.
 
 ---
