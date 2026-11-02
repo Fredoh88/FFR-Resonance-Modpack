@@ -1,399 +1,323 @@
 -- Complete Roster Equipment & Abilities Highlighter for Final Fantasy Resonance
--- Fully supports all 8 Playable Characters, all 26 Visions, all Gear Tiers (Early -> Mid -> Late -> Endgame BiS)
+-- Fully supports all 8 Playable Characters, all 26 Visions, all Gear Tiers
+-- Individual Character Specialization & Intelligent Anti-Overlap Upgrade Scoring
 -- Crash-Hardened: Zero recursion, Zero unsafe UStruct reflection, 100% Game-Thread Safe
 
 local M = {}
 
-local STAR = "\226\152\133 "
+local STAR = "\226\152\133 " -- Unicode Black Star (★)
 
-local CHAR_TAGS = {
+-- Priority tiers:
+-- 5 = Signature BiS / Essential Role Defining
+-- 4 = High Priority Upgrade
+-- 3 = Solid Role Upgrade
+-- 2 = Neutral / Generic Filler
+-- 1 = Off-Role / Suboptimal
+-- 0 = Incompatible
+
+local CHAR_PROFILES = {
     ["Rain"] = {
-        -- Heavy Armor & Plate (Sentinel Tank EHP)
-        ["blessed cuirass"]    = STAR .. "[CHOOSE THIS - BEST EARLY TANK]",
-        ["iron armor"]         = STAR .. "[CHOOSE THIS - DEF UPGRADE]",
-        ["steel armor"]        = STAR .. "[CHOOSE THIS - DEF UPGRADE]",
-        ["mythril plate"]      = STAR .. "[CHOOSE THIS - TANK BiS]",
-        ["knight's armor"]     = STAR .. "[CHOOSE THIS - TANK BiS]",
-        ["gold armor"]         = STAR .. "[CHOOSE THIS - TANK BiS]",
-        ["diamond armor"]      = STAR .. "[CHOOSE THIS - TANK BiS]",
-        ["flame mail"]         = STAR .. "[CHOOSE THIS - FIRE DEF]",
-        ["ice armor"]          = STAR .. "[CHOOSE THIS - ICE DEF]",
-        ["dragon mail"]        = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["demon mail"]         = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["genji armor"]        = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["crystal armor"]      = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["force armor"]        = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["maximilian"]         = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
+        role = "Sentinel",
+        gear = {
+            -- Heavy Armor & Plate (Sentinel Tank EHP)
+            ["blessed cuirass"]    = { score = 5, tag = "[CHOOSE THIS - BEST EARLY TANK]" },
+            ["iron armor"]         = { score = 3, tag = "[CHOOSE THIS - DEF UPGRADE]" },
+            ["steel armor"]        = { score = 3, tag = "[CHOOSE THIS - DEF UPGRADE]" },
+            ["mythril plate"]      = { score = 4, tag = "[CHOOSE THIS - TANK BiS]" },
+            ["knight's armor"]     = { score = 4, tag = "[CHOOSE THIS - TANK BiS]" },
+            ["gold armor"]         = { score = 4, tag = "[CHOOSE THIS - TANK BiS]" },
+            ["diamond armor"]      = { score = 4, tag = "[CHOOSE THIS - TANK BiS]" },
+            ["flame mail"]         = { score = 4, tag = "[CHOOSE THIS - FIRE DEF]" },
+            ["ice armor"]          = { score = 4, tag = "[CHOOSE THIS - ICE DEF]" },
+            ["dragon mail"]        = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["demon mail"]         = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["genji armor"]        = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["crystal armor"]      = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["force armor"]        = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["maximilian"]         = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["phalanx"]            = { score = 4, tag = "[CHOOSE THIS - TANK MITIGATION]" },
 
-        -- Tank Shields
-        ["buckler"]            = STAR .. "[CHOOSE THIS - SHIELD]",
-        ["iron shield"]        = STAR .. "[CHOOSE THIS - SHIELD]",
-        ["mythril shield"]     = STAR .. "[CHOOSE THIS - TANK BiS]",
-        ["knight's shield"]    = STAR .. "[CHOOSE THIS - TANK BiS]",
-        ["flame shield"]       = STAR .. "[CHOOSE THIS - ELEM SHIELD]",
-        ["ice shield"]         = STAR .. "[CHOOSE THIS - ELEM SHIELD]",
-        ["aegis shield"]       = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["genji shield"]       = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
+            -- Tank Shields
+            ["buckler"]            = { score = 3, tag = "[CHOOSE THIS - SHIELD]" },
+            ["iron shield"]        = { score = 3, tag = "[CHOOSE THIS - SHIELD]" },
+            ["mythril shield"]     = { score = 4, tag = "[CHOOSE THIS - TANK BiS]" },
+            ["knight's shield"]    = { score = 4, tag = "[CHOOSE THIS - TANK BiS]" },
+            ["flame shield"]       = { score = 4, tag = "[CHOOSE THIS - ELEM SHIELD]" },
+            ["ice shield"]         = { score = 4, tag = "[CHOOSE THIS - ELEM SHIELD]" },
+            ["aegis shield"]       = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["genji shield"]       = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
 
-        -- Tank Accessories
-        ["bulletproof vest"]   = STAR .. "[CHOOSE THIS - TANK DEF+]",
-        ["earrings of health"] = STAR .. "[CHOOSE THIS - TANK HP+]",
-        ["titan's bangle"]     = STAR .. "[CHOOSE THIS - TANK BiS]",
-        ["muscle belt"]        = STAR .. "[CHOOSE THIS - HP+]",
-        ["barrier ring"]       = STAR .. "[CHOOSE THIS - MAG DEF+]",
-        ["protect ring"]       = STAR .. "[CHOOSE THIS - AUTO-PROTECT]",
-        ["safety bit"]         = STAR .. "[CHOOSE THIS - DEATH IMMUNE]",
+            -- Tank Accessories
+            ["bulletproof vest"]   = { score = 5, tag = "[CHOOSE THIS - TANK DEF+]" },
+            ["earrings of health"] = { score = 4, tag = "[CHOOSE THIS - TANK HP+]" },
+            ["titan's bangle"]     = { score = 5, tag = "[CHOOSE THIS - TANK BiS]" },
+            ["muscle belt"]        = { score = 4, tag = "[CHOOSE THIS - HP+]" },
+            ["barrier ring"]       = { score = 4, tag = "[CHOOSE THIS - MAG DEF+]" },
+            ["protect ring"]       = { score = 4, tag = "[CHOOSE THIS - AUTO-PROTECT]" },
+            ["safety bit"]         = { score = 5, tag = "[CHOOSE THIS - DEATH IMMUNE]" },
 
-        -- Greatswords & Weapons
-        ["crimson saber"]      = STAR .. "[CHOOSE THIS - BALANCED]",
-        ["iron sword"]         = STAR .. "[CHOOSE THIS - WEAPON]",
-        ["broadsword"]         = STAR .. "[CHOOSE THIS - WEAPON]",
-        ["mythril blade"]      = STAR .. "[CHOOSE THIS - ATK+]",
-        ["flametongue"]        = STAR .. "[CHOOSE THIS - FIRE BiS]",
-        ["coral sword"]        = STAR .. "[CHOOSE THIS - THUNDER+]",
-        ["buster sword"]       = STAR .. "[CHOOSE THIS - HIGH ATK]",
-        ["excalibur"]          = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["save the queen"]     = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["ragnarok"]           = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["ultima weapon"]      = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
+            -- Greatswords & Weapons
+            ["crimson saber"]      = { score = 4, tag = "[CHOOSE THIS - BALANCED]" },
+            ["iron sword"]         = { score = 3, tag = "[CHOOSE THIS - WEAPON]" },
+            ["broadsword"]         = { score = 3, tag = "[CHOOSE THIS - WEAPON]" },
+            ["mythril blade"]      = { score = 3, tag = "[CHOOSE THIS - ATK+]" },
+            ["flametongue"]        = { score = 5, tag = "[CHOOSE THIS - FIRE BiS]" },
+            ["coral sword"]        = { score = 4, tag = "[CHOOSE THIS - THUNDER+]" },
+            ["buster sword"]       = { score = 4, tag = "[CHOOSE THIS - HIGH ATK]" },
+            ["excalibur"]          = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["save the queen"]     = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["ragnarok"]           = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["ultima weapon"]      = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
 
-        -- Visions (Role-Optimal)
-        ["warrior of light"]   = STAR .. "[CHOOSE THIS - BEST TANK VISION]",
-        ["cecil"]              = STAR .. "[CHOOSE THIS - BEST TANK VISION]",
-        ["wilhelm"]            = STAR .. "[CHOOSE THIS - PURE TANK BiS]",
-        ["charlotte"]          = STAR .. "[CHOOSE THIS - SENTINEL / ICE TANK]",
-        ["knight of grandshelt charlotte"] = STAR .. "[CHOOSE THIS - SENTINEL / ICE TANK]",
-        ["camille"]            = STAR .. "[CHOOSE THIS - LB / BREAK TANK]",
-        ["firion"]             = STAR .. "[CHOOSE THIS - COUNTER TANK]",
+            -- Visions
+            ["warrior of light"]   = { score = 5, tag = "[CHOOSE THIS - BEST TANK VISION]" },
+            ["cecil"]              = { score = 5, tag = "[CHOOSE THIS - BEST TANK VISION]" },
+            ["wilhelm"]            = { score = 5, tag = "[CHOOSE THIS - PURE TANK BiS]" },
+            ["charlotte"]          = { score = 5, tag = "[CHOOSE THIS - SENTINEL / ICE TANK]" },
+            ["knight of grandshelt charlotte"] = { score = 5, tag = "[CHOOSE THIS - SENTINEL / ICE TANK]" },
+            ["camille"]            = { score = 4, tag = "[CHOOSE THIS - LB / BREAK TANK]" },
+            ["firion"]             = { score = 4, tag = "[CHOOSE THIS - COUNTER TANK]" },
+            ["cloud"]              = { score = 3, tag = "[CHOOSE THIS - EARLY ATK/DEF]" },
 
-        -- Recommended Abilities & Passives
-        ["multi cover"]        = STAR .. "[CHOOSE THIS - BEST TANK PASSIVE]",
-        ["multi-cover"]        = STAR .. "[CHOOSE THIS - BEST TANK PASSIVE]",
-        ["arms akimbo"]        = STAR .. "[CHOOSE THIS - TANK PASSIVE]",
-        ["double action"]      = STAR .. "[CHOOSE THIS - AGGRO / SHIELD]",
-        ["half mp"]            = STAR .. "[CHOOSE THIS - MP CONSERVATION]",
-        ["physical counter"]   = STAR .. "[CHOOSE THIS - COUNTER STAGGER]",
-        ["magic counter"]      = STAR .. "[CHOOSE THIS - COUNTER STAGGER]",
-        ["firaga blade"]       = STAR .. "[CHOOSE THIS - FIRE 3.0x BREAK]",
-        ["tackle"]             = STAR .. "[CHOOSE THIS - HIGH STAGGER]",
-        ["provoke"]            = STAR .. "[CHOOSE THIS - TANK AGGRO]",
+            -- Recommended Abilities & Passives
+            ["multi cover"]        = { score = 5, tag = "[CHOOSE THIS - BEST TANK PASSIVE]" },
+            ["multi-cover"]        = { score = 5, tag = "[CHOOSE THIS - BEST TANK PASSIVE]" },
+            ["arms akimbo"]        = { score = 4, tag = "[CHOOSE THIS - TANK PASSIVE]" },
+            ["double action"]      = { score = 4, tag = "[CHOOSE THIS - AGGRO / SHIELD]" },
+            ["half mp"]            = { score = 4, tag = "[CHOOSE THIS - MP CONSERVATION]" },
+            ["physical counter"]   = { score = 5, tag = "[CHOOSE THIS - COUNTER STAGGER]" },
+            ["magic counter"]      = { score = 5, tag = "[CHOOSE THIS - COUNTER STAGGER]" },
+            ["firaga blade"]       = { score = 4, tag = "[CHOOSE THIS - FIRE 3.0x BREAK]" },
+            ["tackle"]             = { score = 4, tag = "[CHOOSE THIS - HIGH STAGGER]" },
+            ["provoke"]            = { score = 5, tag = "[CHOOSE THIS - TANK AGGRO]" },
+        }
     },
 
     ["Lasswell"] = {
-        -- Katanas & Blades (Crit & Boss Finisher)
-        ["shiden"]             = STAR .. "[CHOOSE THIS - HIGH ATK]",
-        ["kotetsu"]            = STAR .. "[CHOOSE THIS - ATK+]",
-        ["kazekiri"]           = STAR .. "[CHOOSE THIS - WIND BLADE]",
-        ["osafune"]            = STAR .. "[CHOOSE THIS - ATK+]",
-        ["murasame"]           = STAR .. "[CHOOSE THIS - CRIT BiS]",
-        ["kiku-ichimonji"]     = STAR .. "[CHOOSE THIS - HIGH ATK]",
-        ["icebrand"]           = STAR .. "[CHOOSE THIS - ICE BiS]",
-        ["ashura"]             = STAR .. "[CHOOSE THIS - ATK+]",
-        ["zanmato"]            = STAR .. "[CHOOSE THIS - HIGH ATK]",
-        ["masamune"]           = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["muramasa"]           = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["chirijiraden"]       = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
+        role = "Breaker",
+        gear = {
+            -- Katanas & Blades (Crit & Boss Finisher)
+            ["shiden"]             = { score = 4, tag = "[CHOOSE THIS - HIGH ATK]" },
+            ["kotetsu"]            = { score = 3, tag = "[CHOOSE THIS - ATK+]" },
+            ["kazekiri"]           = { score = 4, tag = "[CHOOSE THIS - WIND BLADE]" },
+            ["osafune"]            = { score = 3, tag = "[CHOOSE THIS - ATK+]" },
+            ["murasame"]           = { score = 5, tag = "[CHOOSE THIS - CRIT BiS]" },
+            ["kiku-ichimonji"]     = { score = 4, tag = "[CHOOSE THIS - HIGH ATK]" },
+            ["icebrand"]           = { score = 5, tag = "[CHOOSE THIS - ICE BiS]" },
+            ["ashura"]             = { score = 4, tag = "[CHOOSE THIS - ATK+]" },
+            ["zanmato"]            = { score = 4, tag = "[CHOOSE THIS - HIGH ATK]" },
+            ["masamune"]           = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["muramasa"]           = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["chirijiraden"]       = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
 
-        -- Light Armor / Ninja Gear (Speed & Crit)
-        ["leather armor"]      = STAR .. "[CHOOSE THIS - EARLY ARMOR]",
-        ["kenpogi"]            = STAR .. "[CHOOSE THIS - ATK+]",
-        ["black gi"]           = STAR .. "[CHOOSE THIS - ATK UPGRADE]",
-        ["ninja garb"]         = STAR .. "[CHOOSE THIS - SPEED/ATK]",
-        ["shinobi gear"]       = STAR .. "[CHOOSE THIS - CRIT/SPEED]",
-        ["mirage vest"]        = STAR .. "[CHOOSE THIS - EVASION]",
-        ["assassins vest"]     = STAR .. "[CHOOSE THIS - CRIT BiS]",
-        ["dark gear"]          = STAR .. "[CHOOSE THIS - ATK+]",
-        ["brave suit"]         = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
+            -- Light Armor / Ninja Gear (Speed & Crit)
+            ["leather armor"]      = { score = 2, tag = "[CHOOSE THIS - EARLY ARMOR]" },
+            ["kenpogi"]            = { score = 3, tag = "[CHOOSE THIS - ATK+]" },
+            ["black gi"]           = { score = 4, tag = "[CHOOSE THIS - ATK UPGRADE]" },
+            ["ninja garb"]         = { score = 4, tag = "[CHOOSE THIS - SPEED/ATK]" },
+            ["shinobi gear"]       = { score = 5, tag = "[CHOOSE THIS - CRIT/SPEED]" },
+            ["mirage vest"]        = { score = 4, tag = "[CHOOSE THIS - EVASION]" },
+            ["assassins vest"]     = { score = 5, tag = "[CHOOSE THIS - CRIT BiS]" },
+            ["dark gear"]          = { score = 4, tag = "[CHOOSE THIS - ATK+]" },
+            ["brave suit"]         = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
 
-        -- Crit & Physical Accessories (Includes Early Game Options)
-        ["power wrist"]        = STAR .. "[CHOOSE THIS - ATK+ BiS]",
-        ["hairband"]           = STAR .. "[CHOOSE THIS - EARLY DEF/HP]",
-        ["earrings of health"] = STAR .. "[CHOOSE THIS - HP UPGRADE]",
-        ["hyper wrist"]        = STAR .. "[CHOOSE THIS - ATK BiS]",
-        ["hero ring"]          = STAR .. "[CHOOSE THIS - ATK/CRIT+]",
-        ["black belt"]         = STAR .. "[CHOOSE THIS - CRIT/COUNTER]",
-        ["hermes sandals"]     = STAR .. "[CHOOSE THIS - SPEED+]",
-        ["sprint shoes"]       = STAR .. "[CHOOSE THIS - SPEED+]",
-        ["monarch's ring"]     = STAR .. "[CHOOSE THIS - STATS+]",
-        ["genji glove"]        = STAR .. "[CHOOSE THIS - DUAL-WIELD BiS]",
-        ["celestial glove"]    = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
+            -- Crit & Physical Accessories
+            ["power wrist"]        = { score = 5, tag = "[CHOOSE THIS - ATK+ BiS]" },
+            ["hyper wrist"]        = { score = 5, tag = "[CHOOSE THIS - ATK BiS]" },
+            ["hero ring"]          = { score = 5, tag = "[CHOOSE THIS - ATK/CRIT+]" },
+            ["black belt"]         = { score = 4, tag = "[CHOOSE THIS - CRIT/COUNTER]" },
+            ["hermes sandals"]     = { score = 4, tag = "[CHOOSE THIS - SPEED+]" },
+            ["sprint shoes"]       = { score = 4, tag = "[CHOOSE THIS - SPEED+]" },
+            ["monarch's ring"]     = { score = 5, tag = "[CHOOSE THIS - STATS+]" },
+            ["genji glove"]        = { score = 5, tag = "[CHOOSE THIS - DUAL-WIELD BiS]" },
+            ["celestial glove"]    = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["earrings of health"] = { score = 2, tag = "[CHOOSE THIS - HP UPGRADE]" },
 
-        -- Visions (Role-Optimal)
-        ["cloud"]              = STAR .. "[CHOOSE THIS - BEST PHYS CRIT VISION]",
-        ["sephiroth"]          = STAR .. "[CHOOSE THIS - BURST DPS BiS]",
-        ["tidus"]              = STAR .. "[CHOOSE THIS - STAGGER / MULTI-HIT]",
-        ["firion"]             = STAR .. "[CHOOSE THIS - COMBO SCALING]",
-        ["noctis"]             = STAR .. "[CHOOSE THIS - CRIT AND SCAN]",
+            -- Visions
+            ["cloud"]              = { score = 5, tag = "[CHOOSE THIS - BEST PHYS CRIT VISION]" },
+            ["sephiroth"]          = { score = 5, tag = "[CHOOSE THIS - BURST DPS BiS]" },
+            ["tidus"]              = { score = 4, tag = "[CHOOSE THIS - STAGGER / MULTI-HIT]" },
+            ["firion"]             = { score = 4, tag = "[CHOOSE THIS - COMBO SCALING]" },
+            ["noctis"]             = { score = 4, tag = "[CHOOSE THIS - CRIT AND SCAN]" },
 
-        -- Recommended Abilities & Passives
-        ["cloud soul"]         = STAR .. "[CHOOSE THIS - BEST CRIT PASSIVE]",
-        ["rearguard"]          = STAR .. "[CHOOSE THIS - BACKSTAB CRIT]",
-        ["improvement"]        = STAR .. "[CHOOSE THIS - ATK SCALING]",
-        ["scan & strike"]      = STAR .. "[CHOOSE THIS - WEAKNESS CRIT]",
-        ["scan and strike"]    = STAR .. "[CHOOSE THIS - WEAKNESS CRIT]",
-        ["double action"]      = STAR .. "[CHOOSE THIS - DUAL HIT]",
-        ["half mp"]            = STAR .. "[CHOOSE THIS - MP CONSERVATION]",
-        ["null moon"]          = STAR .. "[CHOOSE THIS - CRIT FINISHER]",
-        ["dawn frost"]         = STAR .. "[CHOOSE THIS - ICE STAGGER]",
-        ["blizzaga blade"]     = STAR .. "[CHOOSE THIS - ICE 3.0x BREAK]",
-        ["barrage"]            = STAR .. "[CHOOSE THIS - MULTI-HIT]",
-        ["aero blade"]         = STAR .. "[CHOOSE THIS - WIND BREAK]",
+            -- Recommended Abilities & Passives
+            ["cloud soul"]         = { score = 5, tag = "[CHOOSE THIS - BEST CRIT PASSIVE]" },
+            ["rearguard"]          = { score = 5, tag = "[CHOOSE THIS - BACKSTAB CRIT]" },
+            ["improvement"]        = { score = 4, tag = "[CHOOSE THIS - ATK SCALING]" },
+            ["scan & strike"]      = { score = 4, tag = "[CHOOSE THIS - WEAKNESS CRIT]" },
+            ["scan and strike"]    = { score = 4, tag = "[CHOOSE THIS - WEAKNESS CRIT]" },
+            ["double action"]      = { score = 4, tag = "[CHOOSE THIS - DUAL HIT]" },
+            ["half mp"]            = { score = 4, tag = "[CHOOSE THIS - MP CONSERVATION]" },
+            ["null moon"]          = { score = 5, tag = "[CHOOSE THIS - CRIT FINISHER]" },
+            ["dawn frost"]         = { score = 4, tag = "[CHOOSE THIS - ICE STAGGER]" },
+            ["blizzaga blade"]     = { score = 4, tag = "[CHOOSE THIS - ICE 3.0x BREAK]" },
+            ["barrage"]            = { score = 5, tag = "[CHOOSE THIS - MULTI-HIT]" },
+            ["aero blade"]         = { score = 4, tag = "[CHOOSE THIS - WIND BREAK]" },
+        }
     },
 
     ["Fina"] = {
-        -- Staves & Recovery
-        ["wooden staff"]       = STAR .. "[CHOOSE THIS - STAFF]",
-        ["staff of wrath"]     = STAR .. "[CHOOSE THIS - SPR+]",
-        ["golden staff"]       = STAR .. "[CHOOSE THIS - SPR+]",
-        ["mage's staff"]       = STAR .. "[CHOOSE THIS - SPR+]",
-        ["rune staff"]         = STAR .. "[CHOOSE THIS - SPR+]",
-        ["seraphim staff"]     = STAR .. "[CHOOSE THIS - HEAL BiS]",
-        ["holy wand"]          = STAR .. "[CHOOSE THIS - DUALCAST/SPR]",
-        ["nirvana"]            = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
+        role = "Luminary",
+        gear = {
+            -- Staves & Recovery
+            ["wooden staff"]       = { score = 2, tag = "[CHOOSE THIS - STAFF]" },
+            ["staff of wrath"]     = { score = 3, tag = "[CHOOSE THIS - SPR+]" },
+            ["golden staff"]       = { score = 3, tag = "[CHOOSE THIS - SPR+]" },
+            ["mage's staff"]       = { score = 3, tag = "[CHOOSE THIS - SPR+]" },
+            ["rune staff"]         = { score = 4, tag = "[CHOOSE THIS - SPR+]" },
+            ["seraphim staff"]     = { score = 5, tag = "[CHOOSE THIS - HEAL BiS]" },
+            ["holy wand"]          = { score = 5, tag = "[CHOOSE THIS - DUALCAST/SPR]" },
+            ["nirvana"]            = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
 
-        -- Robes
-        ["cotton robe"]        = STAR .. "[CHOOSE THIS - ROBE]",
-        ["silken robe"]        = STAR .. "[CHOOSE THIS - SPR+]",
-        ["mage's habit"]       = STAR .. "[CHOOSE THIS - SPR+]",
-        ["white robe"]         = STAR .. "[CHOOSE THIS - SPR/DEF]",
-        ["minerva bustier"]    = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["rainbow robe"]       = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
+            -- Robes
+            ["cotton robe"]        = { score = 2, tag = "[CHOOSE THIS - ROBE]" },
+            ["silken robe"]        = { score = 3, tag = "[CHOOSE THIS - SPR+]" },
+            ["mage's habit"]       = { score = 3, tag = "[CHOOSE THIS - SPR+]" },
+            ["white robe"]         = { score = 4, tag = "[CHOOSE THIS - SPR/DEF]" },
+            ["minerva bustier"]    = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["rainbow robe"]       = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
 
-        -- Accessories
-        ["rosary"]             = STAR .. "[CHOOSE THIS - HEAL SPR+]",
-        ["gold ring"]          = STAR .. "[CHOOSE THIS - DEF/SPR]",
-        ["earrings of health"] = STAR .. "[CHOOSE THIS - HP UPGRADE]",
-        ["hairband"]           = STAR .. "[CHOOSE THIS - DEF/HP]",
-        ["angel earrings"]     = STAR .. "[CHOOSE THIS - REGEN/SPR]",
-        ["star pendant"]       = STAR .. "[CHOOSE THIS - POISON IMMUNE]",
-        ["fairy ring"]         = STAR .. "[CHOOSE THIS - HEAL+]",
-        ["ribbon"]             = STAR .. "[CHOOSE THIS - STATUS IMMUNE]",
+            -- Accessories
+            ["rosary"]             = { score = 5, tag = "[CHOOSE THIS - HEAL SPR+]" },
+            ["gold ring"]          = { score = 3, tag = "[CHOOSE THIS - DEF/SPR]" },
+            ["earrings of health"] = { score = 3, tag = "[CHOOSE THIS - HP UPGRADE]" },
+            ["angel earrings"]     = { score = 4, tag = "[CHOOSE THIS - REGEN/SPR]" },
+            ["star pendant"]       = { score = 3, tag = "[CHOOSE THIS - POISON IMMUNE]" },
+            ["fairy ring"]         = { score = 5, tag = "[CHOOSE THIS - HEAL+]" },
+            ["ribbon"]             = { score = 5, tag = "[CHOOSE THIS - STATUS IMMUNE]" },
 
-        -- Visions (Role-Optimal)
-        ["leah"]               = STAR .. "[CHOOSE THIS - BEST HEALER VISION]",
-        ["ayaka"]              = STAR .. "[CHOOSE THIS - REGEN / HEAL BiS]",
-        ["tronn"]              = STAR .. "[CHOOSE THIS - HEAL + BREAK UTILITY]",
-        ["amelia"]             = STAR .. "[CHOOSE THIS - SUPPORT / BREAK]",
-        ["onion knight"]       = STAR .. "[CHOOSE THIS - LB TRIPLE CHARGE]",
+            -- Visions
+            ["leah"]               = { score = 5, tag = "[CHOOSE THIS - BEST HEALER VISION]" },
+            ["ayaka"]              = { score = 5, tag = "[CHOOSE THIS - REGEN / HEAL BiS]" },
+            ["tronn"]              = { score = 4, tag = "[CHOOSE THIS - HEAL + BREAK UTILITY]" },
+            ["amelia"]             = { score = 3, tag = "[CHOOSE THIS - SUPPORT / BREAK]" },
+            ["onion knight"]       = { score = 4, tag = "[CHOOSE THIS - LB TRIPLE CHARGE]" },
 
-        -- Recommended Abilities & Passives
-        ["dualcast"]           = STAR .. "[CHOOSE THIS - BEST HEALER PASSIVE]",
-        ["half mp"]            = STAR .. "[CHOOSE THIS - MP CONSERVATION]",
-        ["lb triple charge"]   = STAR .. "[CHOOSE THIS - FAST REVIVE LB]",
-        ["charge lb on heal"]  = STAR .. "[CHOOSE THIS - LB CYCLING]",
-        ["auto-regen"]         = STAR .. "[CHOOSE THIS - PASSIVE REGEN]",
-        ["curaja"]             = STAR .. "[CHOOSE THIS - FULL PARTY HEAL]",
-        ["cura"]               = STAR .. "[CHOOSE THIS - PARTY HEAL]",
-        ["arise"]              = STAR .. "[CHOOSE THIS - 100% REVIVE]",
-        ["cheer"]              = STAR .. "[CHOOSE THIS - PARTY BUFF]",
+            -- Recommended Abilities & Passives
+            ["dualcast"]           = { score = 5, tag = "[CHOOSE THIS - BEST HEALER PASSIVE]" },
+            ["half mp"]            = { score = 4, tag = "[CHOOSE THIS - MP CONSERVATION]" },
+            ["lb triple charge"]   = { score = 5, tag = "[CHOOSE THIS - FAST REVIVE LB]" },
+            ["charge lb on heal"]  = { score = 4, tag = "[CHOOSE THIS - LB CYCLING]" },
+            ["auto-regen"]         = { score = 4, tag = "[CHOOSE THIS - PASSIVE REGEN]" },
+            ["curaja"]             = { score = 5, tag = "[CHOOSE THIS - FULL PARTY HEAL]" },
+            ["cura"]               = { score = 4, tag = "[CHOOSE THIS - PARTY HEAL]" },
+            ["arise"]              = { score = 5, tag = "[CHOOSE THIS - 100% REVIVE]" },
+            ["cheer"]              = { score = 4, tag = "[CHOOSE THIS - PARTY BUFF]" },
+        }
     },
 
     ["Archwitch Fina"] = {
-        -- Magic Rods & Whips
-        ["black mage rod"]     = STAR .. "[CHOOSE THIS - MAG+]",
-        ["demon rod"]          = STAR .. "[CHOOSE THIS - MAG+]",
-        ["whip"]               = STAR .. "[CHOOSE THIS - WHIP]",
-        ["thorned whip"]       = STAR .. "[CHOOSE THIS - MAG/POISON]",
-        ["lilith rod"]         = STAR .. "[CHOOSE THIS - DARK/MAG BiS]",
-        ["dark rod"]           = STAR .. "[CHOOSE THIS - DARK ELEM+]",
-        ["meteor wand"]        = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
+        role = "Saboteur",
+        gear = {
+            -- Magic Rods & Whips
+            ["black mage rod"]     = { score = 3, tag = "[CHOOSE THIS - MAG+]" },
+            ["demon rod"]          = { score = 4, tag = "[CHOOSE THIS - MAG+]" },
+            ["thorned whip"]       = { score = 4, tag = "[CHOOSE THIS - MAG/POISON]" },
+            ["lilith rod"]         = { score = 5, tag = "[CHOOSE THIS - DARK/MAG BiS]" },
+            ["dark rod"]           = { score = 4, tag = "[CHOOSE THIS - DARK ELEM+]" },
+            ["meteor wand"]        = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
 
-        -- Robes
-        ["cotton robe"]        = STAR .. "[CHOOSE THIS - ROBE]",
-        ["black robe"]         = STAR .. "[CHOOSE THIS - MAG+]",
-        ["sorcerer's robe"]    = STAR .. "[CHOOSE THIS - MAG+]",
-        ["dark robe"]          = STAR .. "[CHOOSE THIS - DARK ELEM+]",
-        ["mystic garb"]        = STAR .. "[CHOOSE THIS - MAG BiS]",
-        ["lordly robe"]        = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
+            -- Robes
+            ["cotton robe"]        = { score = 2, tag = "[CHOOSE THIS - ROBE]" },
+            ["black robe"]         = { score = 4, tag = "[CHOOSE THIS - MAG+]" },
+            ["sorcerer's robe"]    = { score = 4, tag = "[CHOOSE THIS - MAG+]" },
+            ["dark robe"]          = { score = 5, tag = "[CHOOSE THIS - DARK ELEM+]" },
+            ["mystic garb"]        = { score = 4, tag = "[CHOOSE THIS - MAG BiS]" },
+            ["lordly robe"]        = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
 
-        -- Accessories
-        ["earrings"]           = STAR .. "[CHOOSE THIS - MAG+]",
-        ["mage's earring"]     = STAR .. "[CHOOSE THIS - MAG BiS]",
-        ["crystal ring"]       = STAR .. "[CHOOSE THIS - MAG/HP]",
-        ["gold ring"]          = STAR .. "[CHOOSE THIS - DEF/SPR]",
-        ["soul of thamasa"]    = STAR .. "[CHOOSE THIS - DUALCAST BiS]",
-        ["ribbon"]             = STAR .. "[CHOOSE THIS - STATUS IMMUNE]",
+            -- Accessories
+            ["earrings"]           = { score = 4, tag = "[CHOOSE THIS - MAG+]" },
+            ["mage's earring"]     = { score = 5, tag = "[CHOOSE THIS - MAG BiS]" },
+            ["crystal ring"]       = { score = 4, tag = "[CHOOSE THIS - MAG/HP]" },
+            ["soul of thamasa"]    = { score = 5, tag = "[CHOOSE THIS - DUALCAST BiS]" },
+            ["ribbon"]             = { score = 5, tag = "[CHOOSE THIS - STATUS IMMUNE]" },
 
-        -- Visions
-        ["terra"]              = STAR .. "[CHOOSE THIS - BEST BLACK MAGE VISION]",
-        ["kefka"]              = STAR .. "[CHOOSE THIS - AOE NUKE BiS]",
-        ["exdeath"]            = STAR .. "[CHOOSE THIS - DARK MAGIC BiS]",
-        ["dark fina"]          = STAR .. "[CHOOSE THIS - SIGNATURE VISION]",
-        ["archwitch fina"]     = STAR .. "[CHOOSE THIS - SIGNATURE VISION]",
-        ["rinoa"]              = STAR .. "[CHOOSE THIS - MAG BURST]",
+            -- Visions
+            ["terra"]              = { score = 5, tag = "[CHOOSE THIS - BEST BLACK MAGE VISION]" },
+            ["kefka"]              = { score = 5, tag = "[CHOOSE THIS - AOE NUKE BiS]" },
+            ["exdeath"]            = { score = 5, tag = "[CHOOSE THIS - DARK MAGIC BiS]" },
+            ["dark fina"]          = { score = 5, tag = "[CHOOSE THIS - SIGNATURE VISION]" },
+            ["archwitch fina"]     = { score = 5, tag = "[CHOOSE THIS - SIGNATURE VISION]" },
 
-        -- Recommended Abilities & Passives
-        ["dual black magic"]   = STAR .. "[CHOOSE THIS - DOUBLE NUKE]",
-        ["dualcast"]           = STAR .. "[CHOOSE THIS - DUALCAST]",
-        ["half mp"]            = STAR .. "[CHOOSE THIS - MP CONSERVATION]",
-        ["improvement"]        = STAR .. "[CHOOSE THIS - MAG SCALING]",
-        ["magic counter"]      = STAR .. "[CHOOSE THIS - RETALIATION]",
-        ["dystopia"]           = STAR .. "[CHOOSE THIS - DARK NUKE]",
-        ["firaga"]             = STAR .. "[CHOOSE THIS - FIRE 3.0x]",
-        ["blizzaga"]           = STAR .. "[CHOOSE THIS - ICE 3.0x]",
-        ["thundaga"]           = STAR .. "[CHOOSE THIS - THUNDER 3.0x]",
-        ["osmose"]             = STAR .. "[CHOOSE THIS - MP SIPHON]",
+            -- Recommended Abilities & Passives
+            ["dual black magic"]   = { score = 5, tag = "[CHOOSE THIS - DOUBLE NUKE]" },
+            ["dualcast"]           = { score = 5, tag = "[CHOOSE THIS - DUALCAST]" },
+            ["half mp"]            = { score = 4, tag = "[CHOOSE THIS - MP CONSERVATION]" },
+            ["dystopia"]           = { score = 5, tag = "[CHOOSE THIS - DARK NUKE]" },
+            ["firaga"]             = { score = 4, tag = "[CHOOSE THIS - FIRE 3.0x]" },
+            ["blizzaga"]           = { score = 4, tag = "[CHOOSE THIS - ICE 3.0x]" },
+            ["thundaga"]           = { score = 4, tag = "[CHOOSE THIS - THUNDER 3.0x]" },
+        }
     },
 
     ["Nichol"] = {
-        -- Grimoires & Staves
-        ["tactician's grimoire"] = STAR .. "[CHOOSE THIS - TACTICIAN BiS]",
-        ["book of wisdom"]     = STAR .. "[CHOOSE THIS - SPR/MAG]",
-        ["silver rod"]         = STAR .. "[CHOOSE THIS - STATS+]",
-        ["platinum rod"]       = STAR .. "[CHOOSE THIS - SPR+]",
-        ["rune rod"]           = STAR .. "[CHOOSE THIS - STATS+]",
-
-        -- Robes & Coats
-        ["tactician coat"]     = STAR .. "[CHOOSE THIS - TACTICIAN BiS]",
-        ["scholar's robe"]     = STAR .. "[CHOOSE THIS - SPR/DEF]",
-        ["silken robe"]        = STAR .. "[CHOOSE THIS - SPR+]",
-        ["mystic garb"]        = STAR .. "[CHOOSE THIS - DEF/SPR]",
-        ["wise man's robe"]    = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-
-        -- Accessories
-        ["sage's ring"]        = STAR .. "[CHOOSE THIS - MP REGEN/SPR]",
-        ["hero ring"]          = STAR .. "[CHOOSE THIS - STATS+]",
-        ["gold ring"]          = STAR .. "[CHOOSE THIS - DEF/SPR]",
-        ["protect ring"]       = STAR .. "[CHOOSE THIS - DEF+]",
-        ["ribbon"]             = STAR .. "[CHOOSE THIS - STATUS IMMUNE]",
-
-        -- Visions
-        ["nichol"]             = STAR .. "[CHOOSE THIS - SIGNATURE VISION]",
-        ["hope"]               = STAR .. "[CHOOSE THIS - STANCE BUFF+]",
-        ["amelia"]             = STAR .. "[CHOOSE THIS - SUPPORT UTILITY]",
-        ["edward"]             = STAR .. "[CHOOSE THIS - PARTY BUFF]",
-        ["ignis"]              = STAR .. "[CHOOSE THIS - COOK / STATS]",
-
-        -- Recommended Abilities & Passives
-        ["dualcast"]           = STAR .. "[CHOOSE THIS - DOUBLE STANCE/BUFF]",
-        ["soul of stance"]     = STAR .. "[CHOOSE THIS - STANCE EXTENSION]",
-        ["stance mastery"]     = STAR .. "[CHOOSE THIS - FAST STANCE]",
-        ["magic infusion"]     = STAR .. "[CHOOSE THIS - PARTY MP REFILL]",
-        ["half mp"]            = STAR .. "[CHOOSE THIS - MP CONSERVATION]",
-        ["barfira"]            = STAR .. "[CHOOSE THIS - 70% FIRE SHIELD]",
-        ["barblizzara"]        = STAR .. "[CHOOSE THIS - 70% ICE SHIELD]",
-        ["barthundara"]        = STAR .. "[CHOOSE THIS - 70% THUNDER SHIELD]",
+        role = "Tactician",
+        gear = {
+            ["tactician's grimoire"] = { score = 5, tag = "[CHOOSE THIS - TACTICIAN BiS]" },
+            ["book of wisdom"]       = { score = 4, tag = "[CHOOSE THIS - SPR/MAG]" },
+            ["tactician coat"]       = { score = 5, tag = "[CHOOSE THIS - TACTICIAN BiS]" },
+            ["scholar's robe"]       = { score = 4, tag = "[CHOOSE THIS - SPR/DEF]" },
+            ["sage's ring"]          = { score = 5, tag = "[CHOOSE THIS - MP REGEN/SPR]" },
+            ["nichol"]               = { score = 5, tag = "[CHOOSE THIS - SIGNATURE VISION]" },
+            ["hope"]                 = { score = 4, tag = "[CHOOSE THIS - STANCE BUFF+]" },
+            ["dualcast"]             = { score = 5, tag = "[CHOOSE THIS - DOUBLE STANCE/BUFF]" },
+            ["soul of stance"]       = { score = 5, tag = "[CHOOSE THIS - STANCE EXTENSION]" },
+            ["stance mastery"]       = { score = 5, tag = "[CHOOSE THIS - FAST STANCE]" },
+        }
     },
 
     ["Lid"] = {
-        -- Wrenches & Hammers
-        ["mechanist's wrench"] = STAR .. "[CHOOSE THIS - SIGNATURE WEAPON]",
-        ["heavy wrench"]       = STAR .. "[CHOOSE THIS - BREAK POWER]",
-        ["iron hammer"]        = STAR .. "[CHOOSE THIS - HIGH STAGGER]",
-        ["mythril wrench"]     = STAR .. "[CHOOSE THIS - ATK/BREAK]",
-        ["power hammer"]       = STAR .. "[CHOOSE THIS - STAGGER BiS]",
-
-        -- Overalls & Light Armor
-        ["mechanist overalls"] = STAR .. "[CHOOSE THIS - SIGNATURE ARMOR]",
-        ["leather armor"]      = STAR .. "[CHOOSE THIS - EARLY ARMOR]",
-        ["black gi"]           = STAR .. "[CHOOSE THIS - ATK+]",
-        ["ninja garb"]         = STAR .. "[CHOOSE THIS - SPEED+]",
-        ["mirage vest"]        = STAR .. "[CHOOSE THIS - EVASION]",
-        ["brave suit"]         = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-
-        -- Accessories
-        ["power wrist"]        = STAR .. "[CHOOSE THIS - ATK+]",
-        ["hyper wrist"]        = STAR .. "[CHOOSE THIS - ATK+]",
-        ["titan's bangle"]     = STAR .. "[CHOOSE THIS - HP/DEF]",
-        ["hermes sandals"]     = STAR .. "[CHOOSE THIS - SPEED+]",
-        ["black belt"]         = STAR .. "[CHOOSE THIS - COUNTER BREAK]",
-
-        -- Visions
-        ["lid"]                = STAR .. "[CHOOSE THIS - SIGNATURE VISION]",
-        ["camille"]            = STAR .. "[CHOOSE THIS - RAPID BREAK]",
-        ["edgar"]              = STAR .. "[CHOOSE THIS - MECH SLAYER]",
-        ["cid"]                = STAR .. "[CHOOSE THIS - BREAK POWER BiS]",
-        ["rikku"]              = STAR .. "[CHOOSE THIS - ITEM & STEAL MASTER]",
-
-        -- Recommended Abilities & Passives
-        ["break mastery"]      = STAR .. "[CHOOSE THIS - BREAK SPEED]",
-        ["overdrive"]          = STAR .. "[CHOOSE THIS - MECH SLAYER]",
-        ["half mp"]            = STAR .. "[CHOOSE THIS - MP CONSERVATION]",
-        ["armor break"]        = STAR .. "[CHOOSE THIS - SHRED DEF]",
-        ["weapon break"]       = STAR .. "[CHOOSE THIS - SHRED ATK]",
-        ["mind break"]         = STAR .. "[CHOOSE THIS - SHRED MAG]",
-        ["magic break"]        = STAR .. "[CHOOSE THIS - SHRED MAG]",
+        role = "Mechanist",
+        gear = {
+            ["mechanist's wrench"]   = { score = 5, tag = "[CHOOSE THIS - SIGNATURE WEAPON]" },
+            ["heavy wrench"]         = { score = 4, tag = "[CHOOSE THIS - BREAK POWER]" },
+            ["iron hammer"]          = { score = 4, tag = "[CHOOSE THIS - HIGH STAGGER]" },
+            ["mythril wrench"]       = { score = 4, tag = "[CHOOSE THIS - ATK/BREAK]" },
+            ["power hammer"]         = { score = 5, tag = "[CHOOSE THIS - STAGGER BiS]" },
+            ["mechanist overalls"]   = { score = 5, tag = "[CHOOSE THIS - SIGNATURE ARMOR]" },
+            ["lid"]                  = { score = 5, tag = "[CHOOSE THIS - SIGNATURE VISION]" },
+            ["cid"]                  = { score = 5, tag = "[CHOOSE THIS - BREAK POWER BiS]" },
+            ["rikku"]                = { score = 4, tag = "[CHOOSE THIS - ITEM & STEAL MASTER]" },
+            ["break mastery"]        = { score = 5, tag = "[CHOOSE THIS - BREAK SPEED]" },
+            ["armor break"]          = { score = 5, tag = "[CHOOSE THIS - SHRED DEF]" },
+            ["weapon break"]         = { score = 5, tag = "[CHOOSE THIS - SHRED ATK]" },
+        }
     },
 
     ["Jake"] = {
-        -- Guns & Rifles
-        ["handgun"]            = STAR .. "[CHOOSE THIS - WEAPON]",
-        ["silver rifle"]       = STAR .. "[CHOOSE THIS - ATK+]",
-        ["mythril gun"]        = STAR .. "[CHOOSE THIS - CRIT/ATK BiS]",
-        ["quicksilver"]        = STAR .. "[CHOOSE THIS - SPEED/ATK]",
-        ["aldore rifle"]       = STAR .. "[CHOOSE THIS - HIGH ATK]",
-        ["death penalty"]      = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-
-        -- Coats & Light Armor
-        ["corsair coat"]       = STAR .. "[CHOOSE THIS - ATK/SPEED]",
-        ["leather armor"]      = STAR .. "[CHOOSE THIS - EARLY ARMOR]",
-        ["black gi"]           = STAR .. "[CHOOSE THIS - ATK+]",
-        ["ninja garb"]         = STAR .. "[CHOOSE THIS - SPEED+]",
-        ["assassins vest"]     = STAR .. "[CHOOSE THIS - CRIT BiS]",
-        ["mirage vest"]        = STAR .. "[CHOOSE THIS - EVASION]",
-
-        -- Accessories
-        ["power wrist"]        = STAR .. "[CHOOSE THIS - ATK+]",
-        ["hyper wrist"]        = STAR .. "[CHOOSE THIS - ATK+]",
-        ["hero ring"]          = STAR .. "[CHOOSE THIS - CRIT+]",
-        ["hermes sandals"]     = STAR .. "[CHOOSE THIS - SPEED+]",
-        ["black belt"]         = STAR .. "[CHOOSE THIS - COUNTER+]",
-        ["genji glove"]        = STAR .. "[CHOOSE THIS - DUAL-WIELD BiS]",
-
-        -- Visions
-        ["jake"]               = STAR .. "[CHOOSE THIS - SIGNATURE VISION]",
-        ["amelia"]             = STAR .. "[CHOOSE THIS - BEST GUNNER CRIT]",
-        ["cecil"]              = STAR .. "[CHOOSE THIS - SURVIVABILITY]",
-        ["cloud"]              = STAR .. "[CHOOSE THIS - ATK+ CRIT BURST]",
-        ["vincent"]            = STAR .. "[CHOOSE THIS - GUN BURST BiS]",
-
-        -- Recommended Abilities & Passives
-        ["quick draw"]         = STAR .. "[CHOOSE THIS - SPEED / RELOAD]",
-        ["arms akimbo"]        = STAR .. "[CHOOSE THIS - DUAL WIELD ATK]",
-        ["half mp"]            = STAR .. "[CHOOSE THIS - SUSTAIN]",
-        ["flame shot"]         = STAR .. "[CHOOSE THIS - FIRE BREAK]",
-        ["lightning shot"]     = STAR .. "[CHOOSE THIS - THUNDER BREAK]",
-        ["assault shot"]       = STAR .. "[CHOOSE THIS - CRIT SHOT]",
+        role = "Corsair",
+        gear = {
+            ["handgun"]              = { score = 3, tag = "[CHOOSE THIS - WEAPON]" },
+            ["silver rifle"]         = { score = 3, tag = "[CHOOSE THIS - ATK+]" },
+            ["mythril gun"]          = { score = 4, tag = "[CHOOSE THIS - CRIT/ATK BiS]" },
+            ["quicksilver"]          = { score = 4, tag = "[CHOOSE THIS - SPEED/ATK]" },
+            ["aldore rifle"]         = { score = 4, tag = "[CHOOSE THIS - HIGH ATK]" },
+            ["death penalty"]        = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["corsair coat"]         = { score = 5, tag = "[CHOOSE THIS - ATK/SPEED]" },
+            ["jake"]                 = { score = 5, tag = "[CHOOSE THIS - SIGNATURE VISION]" },
+            ["amelia"]               = { score = 5, tag = "[CHOOSE THIS - BEST GUNNER CRIT]" },
+            ["vincent"]              = { score = 5, tag = "[CHOOSE THIS - GUN BURST BiS]" },
+            ["quick draw"]           = { score = 5, tag = "[CHOOSE THIS - SPEED / RELOAD]" },
+            ["arms akimbo"]          = { score = 4, tag = "[CHOOSE THIS - DUAL WIELD ATK]" },
+        }
     },
 
     ["Sakura"] = {
-        -- Lightning Rods & Staves
-        ["sage's staff"]       = STAR .. "[CHOOSE THIS - SAGE BiS]",
-        ["thunder rod"]        = STAR .. "[CHOOSE THIS - THUNDER+]",
-        ["lightning rod"]      = STAR .. "[CHOOSE THIS - THUNDER+]",
-        ["rune rod"]           = STAR .. "[CHOOSE THIS - MAG+]",
-        ["stardust rod"]       = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-
-        -- Sage Robes
-        ["sage's robe"]        = STAR .. "[CHOOSE THIS - SAGE BiS]",
-        ["cotton robe"]        = STAR .. "[CHOOSE THIS - ROBE]",
-        ["silken robe"]        = STAR .. "[CHOOSE THIS - SPR+]",
-        ["sorcerer's robe"]    = STAR .. "[CHOOSE THIS - MAG+]",
-        ["lordly robe"]        = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-        ["rainbow robe"]       = STAR .. "[CHOOSE THIS - ENDGAME BiS]",
-
-        -- Accessories
-        ["earrings"]           = STAR .. "[CHOOSE THIS - MAG+]",
-        ["mage's earring"]     = STAR .. "[CHOOSE THIS - MAG BiS]",
-        ["crystal ring"]       = STAR .. "[CHOOSE THIS - MAG/HP]",
-        ["soul of thamasa"]    = STAR .. "[CHOOSE THIS - DUALCAST BiS]",
-        ["ribbon"]             = STAR .. "[CHOOSE THIS - STATUS IMMUNE]",
-
-        -- Visions
-        ["sakura"]             = STAR .. "[CHOOSE THIS - SIGNATURE VISION]",
-        ["terra"]              = STAR .. "[CHOOSE THIS - MAG ELEM BiS]",
-        ["vivi"]               = STAR .. "[CHOOSE THIS - DOUBLE BLACK MAGIC]",
-        ["kefka"]              = STAR .. "[CHOOSE THIS - THUNDER NUKE]",
-        ["shantotto"]          = STAR .. "[CHOOSE THIS - MULTI-ELEM BURST]",
-
-        -- Recommended Abilities & Passives
-        ["dualcast"]           = STAR .. "[CHOOSE THIS - DOUBLE SPELL]",
-        ["thunder mastery"]    = STAR .. "[CHOOSE THIS - +50% THUNDER DMG]",
-        ["half mp"]            = STAR .. "[CHOOSE THIS - MP CONSERVATION]",
-        ["quick combo"]        = STAR .. "[CHOOSE THIS - CHAIN COMBO]",
-        ["thundaja"]           = STAR .. "[CHOOSE THIS - SCALING THUNDER]",
-        ["rebel thunder"]      = STAR .. "[CHOOSE THIS - SIGNATURE NUKE]",
-    },
+        role = "Sage",
+        gear = {
+            ["sage's staff"]         = { score = 5, tag = "[CHOOSE THIS - SAGE BiS]" },
+            ["thunder rod"]          = { score = 4, tag = "[CHOOSE THIS - THUNDER+]" },
+            ["lightning rod"]        = { score = 4, tag = "[CHOOSE THIS - THUNDER+]" },
+            ["stardust rod"]         = { score = 5, tag = "[CHOOSE THIS - ENDGAME BiS]" },
+            ["sage's robe"]          = { score = 5, tag = "[CHOOSE THIS - SAGE BiS]" },
+            ["sakura"]               = { score = 5, tag = "[CHOOSE THIS - SIGNATURE VISION]" },
+            ["terra"]                = { score = 5, tag = "[CHOOSE THIS - MAG ELEM BiS]" },
+            ["vivi"]                 = { score = 4, tag = "[CHOOSE THIS - DOUBLE BLACK MAGIC]" },
+            ["dualcast"]             = { score = 5, tag = "[CHOOSE THIS - DOUBLE SPELL]" },
+            ["thunder mastery"]      = { score = 5, tag = "[CHOOSE THIS - +50% THUNDER DMG]" },
+            ["rebel thunder"]        = { score = 5, tag = "[CHOOSE THIS - SIGNATURE NUKE]" },
+        }
+    }
 }
 
 local function textOf(tb)
@@ -409,69 +333,71 @@ local function clean(s)
     if idx then
         s = s:sub(1, idx - 1)
     end
-    s = s:gsub("^[%s%*â˜…]+", ""):gsub("[%s%*â˜…]+$", "")
-    s = s:gsub("Ã¢Ëœâ€¦", ""):gsub("ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦", "")
+    s = s:gsub("^[%s%*★]+", ""):gsub("[%s%*★]+$", "")
+    s = s:gsub("â˜…", ""):gsub("★", "")
     return s:gsub("^%s+", ""):gsub("%s+$", "")
 end
 
+local lastConfirmedChar = "Rain"
+
 local function detectActiveCharacter(allTextBlocks)
-    -- Pass 1: Check ROLE on screen
+    -- Priority 1: Check ROLE on screen (each character has a unique Role)
     for _, tb in ipairs(allTextBlocks) do
         local str = textOf(tb)
-        if str and #str < 40 then
+        if str and #str < 35 then
             local t = str:gsub("^%s+", ""):gsub("%s+$", "")
-            if t == "Breaker" then return "Lasswell" end
-            if t == "Sentinel" then return "Rain" end
-            if t == "Luminary" or t == "Medic" or t == "Healer" then return "Fina" end
-            if t == "Saboteur" or t == "Archwitch" or t == "Dark Fina" or t == "Witch" then return "Archwitch Fina" end
-            if t == "Tactician" or t == "Synergist" then return "Nichol" end
-            if t == "Mechanist" then return "Lid" end
-            if t == "Corsair" then return "Jake" end
-            if t == "Sage" then return "Sakura" end
+            if t == "Sentinel" then lastConfirmedChar = "Rain"; return "Rain" end
+            if t == "Breaker" then lastConfirmedChar = "Lasswell"; return "Lasswell" end
+            if t == "Luminary" or t == "Medic" or t == "Healer" then lastConfirmedChar = "Fina"; return "Fina" end
+            if t == "Mechanist" then lastConfirmedChar = "Lid"; return "Lid" end
+            if t == "Tactician" or t == "Synergist" then lastConfirmedChar = "Nichol"; return "Nichol" end
+            if t == "Saboteur" or t == "Archwitch" or t == "Dark Fina" then lastConfirmedChar = "Archwitch Fina"; return "Archwitch Fina" end
+            if t == "Corsair" then lastConfirmedChar = "Jake"; return "Jake" end
+            if t == "Sage" then lastConfirmedChar = "Sakura"; return "Sakura" end
         end
     end
 
-    -- Pass 2: Check Character Name
-    for _, tb in ipairs(allTextBlocks) do
+    -- Priority 2: Check for "Lv. %d+" paired with character name in center status panel
+    for i, tb in ipairs(allTextBlocks) do
         local str = textOf(tb)
-        if str and #str < 30 then
-            local t = str:gsub("^%s+", ""):gsub("%s+$", "")
-            if t == "Lasswell" then return "Lasswell" end
-            if t == "Rain" then return "Rain" end
-            if t == "Fina" then return "Fina" end
-            if t == "Archwitch Fina" or t == "Dark Fina" then return "Archwitch Fina" end
-            if t == "Sakura" then return "Sakura" end
-            if t == "Nichol" then return "Nichol" end
-            if t == "Lid" then return "Lid" end
-            if t == "Jake" then return "Jake" end
+        if str and str:find("Lv%s*%.?%s*%d+") then
+            for j = math.max(1, i - 2), math.min(#allTextBlocks, i + 3) do
+                local nStr = textOf(allTextBlocks[j])
+                if nStr then
+                    local cleanN = nStr:gsub("^%s+", ""):gsub("%s+$", "")
+                    if cleanN == "Rain" then lastConfirmedChar = "Rain"; return "Rain" end
+                    if cleanN == "Lasswell" then lastConfirmedChar = "Lasswell"; return "Lasswell" end
+                    if cleanN == "Fina" then lastConfirmedChar = "Fina"; return "Fina" end
+                    if cleanN == "Lid" then lastConfirmedChar = "Lid"; return "Lid" end
+                    if cleanN == "Nichol" then lastConfirmedChar = "Nichol"; return "Nichol" end
+                    if cleanN == "Jake" then lastConfirmedChar = "Jake"; return "Jake" end
+                    if cleanN == "Sakura" then lastConfirmedChar = "Sakura"; return "Sakura" end
+                    if cleanN == "Archwitch Fina" or cleanN == "Dark Fina" then lastConfirmedChar = "Archwitch Fina"; return "Archwitch Fina" end
+                end
+            end
         end
     end
 
-    -- Pass 3: Check Equipped Weapon/Gear unique to hero
-    for _, tb in ipairs(allTextBlocks) do
-        local str = textOf(tb)
-        if str and #str < 40 then
-            local c = clean(str):lower()
-            if c == "shiden" or c == "kotetsu" or c == "kazekiri" or c == "murasame" then return "Lasswell" end
-            if c == "crimson saber" or c == "blessed cuirass" then return "Rain" end
-            if c == "staff of wrath" or c == "seraphim staff" then return "Fina" end
-            if c == "black mage rod" or c == "thorned whip" then return "Archwitch Fina" end
-            if c == "tactician's grimoire" or c == "tactician coat" then return "Nichol" end
-            if c == "mechanist's wrench" or c == "mechanist overalls" then return "Lid" end
-            if c == "handgun" or c == "silver rifle" or c == "corsair coat" then return "Jake" end
-            if c == "sage's staff" or c == "sage's robe" then return "Sakura" end
-        end
-    end
-
-    return "Rain"
+    -- Priority 3: Fall back to last reliably confirmed character
+    return lastConfirmedChar or "Rain"
 end
 
--- Shallow, 100% crash-safe sibling inspection inside row container
-local function isRowAlreadyEquippedBySomeone(tb)
-    local okPar, par = pcall(function() return tb:GetParent() end)
-    if not (okPar and par and par:IsValid()) then return false end
+-- Get score and tag for a specific item and character
+local function getItemData(rawItemBase, charName)
+    local prof = CHAR_PROFILES[charName]
+    if not (prof and prof.gear) then return 0, nil end
+    local entry = prof.gear[rawItemBase]
+    if entry then
+        return entry.score or 0, entry.tag
+    end
+    return 0, nil
+end
 
-    -- Check direct children of the row container (No recursion, No UStruct reflection)
+-- Inspect whether row is currently equipped, and try to find WHO has it equipped
+local function getRowEquippedInfo(tb, activeChar)
+    local okPar, par = pcall(function() return tb:GetParent() end)
+    if not (okPar and par and par:IsValid()) then return false, nil end
+
     local count = 0
     pcall(function() count = par:GetChildrenCount() end)
     if count > 0 then
@@ -483,10 +409,45 @@ local function isRowAlreadyEquippedBySomeone(tb)
                 if okVis and (vis == 0 or vis == 3 or vis == 4) then
                     local okName, name = pcall(function() return child:GetFName():ToString():lower() end)
                     if okName and name then
-                        if name:find("face") or name:find("chara") or name:find("unit") 
-                           or name:find("portrait") or name:find("head") or name:find("member")
-                           or name:find("icon_e") or name:find("badge") or name:find("equip") then
-                            return true
+                        local isBadge = name:find("face") or name:find("chara") or name:find("unit") 
+                                     or name:find("portrait") or name:find("head") or name:find("member")
+                                     or name:find("icon_e") or name:find("badge") or name:find("equip")
+                        if isBadge then
+                            local owner = nil
+
+                            -- Check texture / brush for character identifier
+                            local okB, brush = pcall(function() return child.Brush end)
+                            if okB and brush then
+                                local okTex, tex = pcall(function() return brush.ResourceObject:GetName():lower() end)
+                                if okTex and tex then
+                                    if tex:find("rain") or tex:find("unit_01") or tex:find("chara_01") then owner = "Rain"
+                                    elseif tex:find("lasswell") or tex:find("unit_02") or tex:find("chara_02") then owner = "Lasswell"
+                                    elseif tex:find("dark") or tex:find("archwitch") then owner = "Archwitch Fina"
+                                    elseif tex:find("fina") or tex:find("unit_03") or tex:find("chara_03") then owner = "Fina"
+                                    elseif tex:find("lid") or tex:find("unit_04") or tex:find("chara_04") then owner = "Lid"
+                                    elseif tex:find("nichol") or tex:find("unit_05") or tex:find("chara_05") then owner = "Nichol"
+                                    elseif tex:find("jake") or tex:find("unit_06") or tex:find("chara_06") then owner = "Jake"
+                                    elseif tex:find("sakura") or tex:find("unit_07") or tex:find("chara_07") then owner = "Sakura"
+                                    end
+                                end
+                            end
+
+                            -- Check badge text
+                            if not owner then
+                                local okTxt, cTxt = pcall(function() return child:GetText():ToString():lower() end)
+                                if okTxt and cTxt and #cTxt > 0 then
+                                    if cTxt:find("rain") then owner = "Rain"
+                                    elseif cTxt:find("lasswell") then owner = "Lasswell"
+                                    elseif cTxt:find("fina") then owner = "Fina"
+                                    elseif cTxt:find("lid") then owner = "Lid"
+                                    elseif cTxt:find("nichol") then owner = "Nichol"
+                                    elseif cTxt:find("jake") then owner = "Jake"
+                                    elseif cTxt:find("sakura") then owner = "Sakura"
+                                    end
+                                end
+                            end
+
+                            return true, owner
                         end
                     end
                 end
@@ -494,16 +455,61 @@ local function isRowAlreadyEquippedBySomeone(tb)
         end
     end
 
-    -- Check outer properties if available
+    -- Check outer properties
     local okOut, outer = pcall(function() return tb:GetOuter() end)
     if okOut and outer and outer:IsValid() then
         local okEq, isEq = pcall(function() return outer.bIsEquipped or outer.bEquipped end)
-        if okEq and isEq == true then return true end
+        if okEq and isEq == true then return true, activeChar end
         local okOth, isOth = pcall(function() return outer.bEquippedOther or outer.bIsEquippedOther end)
-        if okOth and isOth == true then return true end
+        if okOth and isOth == true then
+            return true, nil
+        end
     end
 
-    return false
+    return false, nil
+end
+
+-- Core Recommendation Evaluator:
+-- 1. Must pertain specifically to the active character.
+-- 2. Never overlaps with already equipped gear UNLESS it is a strictly bigger upgrade for the active character.
+local function evaluateRecommendation(baseItem, activeChar, isEquipped, equippedOwner)
+    local activeScore, activeTag = getItemData(baseItem, activeChar)
+
+    -- Case 1: Incompatible or not a notable upgrade for active character
+    if activeScore < 3 or not activeTag then
+        return nil
+    end
+
+    -- Case 2: Unequipped (in inventory) -> Clean, direct recommendation!
+    if not isEquipped then
+        return STAR .. activeTag
+    end
+
+    -- Case 3: Already equipped on the active character in this slot -> Clean, no redundant spam
+    if equippedOwner == activeChar then
+        return nil
+    end
+
+    -- Case 4: Already equipped on another character
+    -- Find other character's score
+    local otherScore = 0
+    if equippedOwner and equippedOwner ~= "" then
+        otherScore = getItemData(baseItem, equippedOwner)
+    else
+        -- If specific owner isn't identified, baseline comparison score is 3
+        otherScore = 3
+    end
+
+    -- User Rule: "dont let it overlap with already equipped unless its a bigger upgrade for one than the rest of the characters"
+    if activeScore > otherScore then
+        -- Active character gains a higher tier upgrade from this gear!
+        local who = (equippedOwner and equippedOwner ~= "") and ("TAKE FROM " .. equippedOwner:upper()) or "BIGGER UPGRADE"
+        return STAR .. string.format("[CHOOSE THIS - %s (+%d TIER)]", who, activeScore - otherScore)
+    else
+        -- Not a bigger upgrade; current owner needs it just as much or more.
+        -- DO NOT OVERLAP!
+        return nil
+    end
 end
 
 local lastScanTime = 0
@@ -514,7 +520,7 @@ function M.tick()
     lastScanTime = now
 
     pcall(function()
-        -- Cutscene / Outworld Fast Gate: Only scan when equipment / ability UI widgets are active
+        -- Cutscene / Outworld Gate: Only scan when equipment / ability UI widgets are active
         local menu = FindFirstOf("WBP_UnitEquippedList_C")
         if not (menu and menu:IsValid()) then
             menu = FindFirstOf("WBP_UnitEquippedSkillList_C")
@@ -528,26 +534,26 @@ function M.tick()
         if not allTBs or #allTBs == 0 then return end
 
         local activeChar = detectActiveCharacter(allTBs)
-        local tagTable = CHAR_TAGS[activeChar] or CHAR_TAGS["Rain"]
 
         for _, tb in ipairs(allTBs) do
             if tb and tb:IsValid() then
                 local str = textOf(tb)
-                if str and str ~= "" and #str < 65 then
+                if str and str ~= "" and #str < 75 then
                     local rawItem = clean(str)
                     local base = rawItem:lower():gsub("^%s+", ""):gsub("%s+$", "")
-                    local recommendedTag = tagTable[base]
-
+                    
                     local hasTag = str:lower():find("%[choose this") ~= nil
-                    local alreadyEquippedByOther = isRowAlreadyEquippedBySomeone(tb)
+                    local isEquipped, equippedOwner = getRowEquippedInfo(tb, activeChar)
 
-                    -- Only recommend if role-recommended AND NOT in use by someone else!
-                    if recommendedTag and not alreadyEquippedByOther then
-                        local want = rawItem .. " " .. recommendedTag
+                    local recString = evaluateRecommendation(base, activeChar, isEquipped, equippedOwner)
+
+                    if recString then
+                        local want = rawItem .. " " .. recString
                         if str ~= want then
                             pcall(function() tb:SetText(FText(want)) end)
                         end
-                    elseif hasTag and (alreadyEquippedByOther or not recommendedTag) then
+                    elseif hasTag then
+                        -- Remove old or invalid tag
                         pcall(function() tb:SetText(FText(rawItem)) end)
                     end
                 end
