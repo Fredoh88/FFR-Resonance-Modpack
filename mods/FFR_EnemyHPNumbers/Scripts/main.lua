@@ -641,13 +641,12 @@ local function update(e, pv)
     local name, level = enemyInfoOf(e)
     if name then wTag = weaknessTag(name) end
 
+    -- Ultra-sleek, compact overhead HUD:
+    -- Omit redundant enemy names from the HP line to prevent horizontal text collision
+    -- with party status cards when enemies are in the foreground.
     local header = ""
-    if name and name ~= "" then
-        if level and level > 0 then
-            header = string.format("[Lv.%d] %s: ", level, name)
-        else
-            header = string.format("%s: ", name)
-        end
+    if level and level > 0 then
+        header = string.format("[Lv.%d] ", level)
     end
 
     local hpPct = (hp and hpMax and hpMax > 0) and math.floor((hp / hpMax) * 100 + 0.5) or 0
