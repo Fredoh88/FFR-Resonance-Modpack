@@ -894,6 +894,65 @@ local function skillTierBonus(skill)
     return 0
 end
 
+-- Role Mastery Bonus: Auto-loads and prioritizes mastered abilities tailored to each character's specific role
+local function roleMasteryBonus(uid, skill, w)
+    if not skill or not skill.name or not uid then return 0 end
+    local sName = skill.name:lower()
+    local who = unitName(uid):lower()
+    local bonus = 0
+
+    -- 1. Rain (The Sentinel Vanguard Tank)
+    if who:find("rain") or who:find("cecil") or who:find("wilhelm") or who:find("charlotte") then
+        if sName:find("provoke") or sName:find("cover") or sName:find("sentinel") or sName:find("taunt") then
+            bonus = bonus + 9000 -- BiS Sentinel Aggro & Team Guard
+        elseif sName:find("phalanx") or sName:find("iron wall") or sName:find("royal guard") or sName:find("defend") or sName:find("guard") then
+            bonus = bonus + 6000 -- Sentinel Damage Reduction & Barrier Stance
+        elseif sName:find("tackle") or sName:find("firaga blade") or sName:find("counter") or sName:find("arms akimbo") then
+            bonus = bonus + 5000 -- Stagger buildup & Counter Stagger
+        elseif sName:find("infinity drive") or sName:find("crimson onslaught") then
+            bonus = bonus + 8500
+        end
+
+    -- 2. Lasswell (Breaker & Critical Boss Finisher)
+    elseif who:find("lasswell") or who:find("cloud") or who:find("sephiroth") or who:find("squall") then
+        if sName:find("null moon") then
+            bonus = bonus + 9500 -- Guaranteed Critical Boss Execution
+        elseif sName:find("dawn frost") or sName:find("blizzaga blade") or sName:find("cross%-slash") or sName:find("blade torrent") then
+            bonus = bonus + 7500 -- Stagger 27 & Elemental Break
+        elseif sName:find("barrage") or sName:find("transient rite") or sName:find("scan & strike") then
+            bonus = bonus + 8000
+        end
+
+    -- 3. Fina (Divine Luminary & Healer)
+    elseif who:find("fina") or who:find("ayaka") or who:find("folka") or who:find("garnet") or who:find("aerith") then
+        if sName:find("curaja") or sName:find("curaga") or sName:find("arise") or sName:find("radiant restoration") then
+            bonus = bonus + 9500 -- 100% Full Party Healing & Revive
+        elseif sName:find("cheer") or sName:find("haste") or sName:find("shell") or sName:find("protect") then
+            bonus = bonus + 6000 -- Party Buffing
+        elseif sName:find("holy ray") or sName:find("banishga") or sName:find("dualcast") then
+            bonus = bonus + 5500
+        end
+
+    -- 4. Lid (Mechanist & Tactical Debuffer)
+    elseif who:find("lid") or who:find("rikku") or who:find("edgar") then
+        if sName:find("armor break") or sName:find("mental break") or sName:find("weapon break") then
+            bonus = bonus + 8500 -- Armor Shred (-DEF / -SPR)
+        elseif sName:find("t.r.n.d") or sName:find("march of the machines") or sName:find("mechabo") then
+            bonus = bonus + 7500 -- Machine Stagger Bursts
+        end
+
+    -- 5. Sakura & Dark Fina (Mage Nuker & Elemental Catalyst)
+    elseif who:find("sakura") or who:find("dark fina") or who:find("archwitch") or who:find("shantotto") or who:find("rydia") then
+        if sName:find("dystopia") or sName:find("alterna") or sName:find("thundaja") or sName:find("firaja") or sName:find("blizzaja") then
+            bonus = bonus + 9500 -- Tier 4 Pinnacle Magic Nukes
+        elseif sName:find("surge") or sName:find("colossal") or sName:find("dualcast") then
+            bonus = bonus + 8000
+        end
+    end
+
+    return bonus
+end
+
 local function elementFactor(skill, enemy)
     local ok, factor = pcall(function()
         local info = skill and (skill.known or knownOf(skill))
@@ -2618,9 +2677,10 @@ local function turn(uid, skills, w, phase)
                         r = 1 + (0.01 / cost)
                     end
                 end
-                -- Tier evolution: Prioritizes higher tier heals (Curaja / Curaga over Cure)
+                -- Tier evolution & Role Mastery: Prioritizes higher tier heals (Curaja / Curaga over Cure)
                 local tb = skillTierBonus(s)
-                r = r + (tb / 1000)
+                local rmb = roleMasteryBonus(uid, s, w)
+                r = r + ((tb + rmb) / 1000)
                 if r > rank then skill, rank = s, r end
             end
         end
@@ -3110,10 +3170,12 @@ local function turn(uid, skills, w, phase)
                     score = score + 6000
                 end
             end
-            -- Auto-Evolve Vision Mastery: Automatically prioritizes the highest unlocked ability tier
+            -- Auto-Evolve Vision Mastery & Role Specialization:
+            -- Automatically prioritizes higher ability tiers and role-defining mastery abilities (e.g. Rain Sentinel)
             local tb = skillTierBonus(s)
-            if tb > 0 then
-                score = score + tb
+            local rmb = roleMasteryBonus(uid, s, w)
+            if (tb + rmb) > 0 then
+                score = score + tb + rmb
             end
             if score > bestScore then
                 bestS, bestU, bestScore, bestSpread = s, targets[1], score, spread and true or false
