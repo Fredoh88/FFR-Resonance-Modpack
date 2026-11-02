@@ -433,13 +433,104 @@ local function detectActiveCharacter(allTextBlocks)
 end
 
 -- Get score and tag for a specific item and character
+-- Includes Dynamic Role-Based Fallback: Evaluates newly swapped Visions, unlocked Masteries, and uncataloged gear
 local function getItemData(rawItemBase, charName)
     local prof = CHAR_PROFILES[charName]
-    if not (prof and prof.gear) then return 0, nil end
-    local entry = prof.gear[rawItemBase]
-    if entry then
-        return entry.score or 0, entry.tag
+    if not prof then return 0, nil end
+    if prof.gear then
+        local entry = prof.gear[rawItemBase]
+        if entry then
+            return entry.score or 0, entry.tag
+        end
     end
+
+    -- Dynamic Role-Based Auto-Selection Fallback:
+    -- When Visions are swapped or new mastery nodes unlock, automatically score and recommend the best role abilities!
+    local s = rawItemBase:lower()
+    local role = prof.role or ""
+
+    if role == "Sentinel" then
+        -- Rain / Tank: Aggro, Mitigation, EHP, Shields, Cover, Counters
+        if s:find("sentinel") or s:find("cover") or s:find("provoke") or s:find("taunt")
+           or s:find("phalanx") or s:find("iron wall") or s:find("royal guard") or s:find("shield wall")
+           or s:find("undying") or s:find("guts") or s:find("last stand") or s:find("draw attacks")
+           or s:find("arms akimbo") or s:find("counter") or s:find("barrier") then
+            return 5, "[CHOOSE THIS - BEST SENTINEL TRAIT]"
+        elseif s:find("hp %+%d+") or s:find("def %+%d+") or s:find("guard") or s:find("defend")
+           or s:find("shield") or s:find("cuirass") or s:find("plate") or s:find("armor")
+           or s:find("bunker") or s:find("bulwark") or s:find("mitigat") or s:find("tackle") then
+            return 4, "[CHOOSE THIS - SENTINEL BiS]"
+        elseif s:find("wilhelm") or s:find("cecil") or s:find("charlotte") or s:find("warrior of light") then
+            return 5, "[CHOOSE THIS - BEST TANK VISION]"
+        end
+
+    elseif role == "Breaker" then
+        -- Lasswell / Physical DPS: Crit, Blade, Stagger, Speed, Break
+        if s:find("null moon") or s:find("dawn frost") or s:find("blade mastery") or s:find("katana mastery")
+           or s:find("crit rate") or s:find("scan & strike") or s:find("rearguard") or s:find("cloud soul")
+           or s:find("stagger surge") or s:find("dual%-wield") or s:find("chirijiraden") or s:find("masamune") then
+            return 5, "[CHOOSE THIS - BREAKER BiS]"
+        elseif s:find("crit") or s:find("katana") or s:find("blade") or s:find("stagger") or s:find("ice")
+           or s:find("frost") or s:find("atk %+%d+") or s:find("speed %+%d+") or s:find("barrage")
+           or s:find("cross") or s:find("slash") or s:find("pierce") or s:find("shinobi") then
+            return 4, "[CHOOSE THIS - BREAKER UPGRADE]"
+        elseif s:find("cloud") or s:find("sephiroth") or s:find("tidus") or s:find("noctis") then
+            return 5, "[CHOOSE THIS - BEST PHYS CRIT VISION]"
+        end
+
+    elseif role == "Luminary" then
+        -- Fina / Healers: Full Party Heals, Revives, SPR, Regen
+        if s:find("curaja") or s:find("curaga") or s:find("arise") or s:find("dualcast")
+           or s:find("white magic mastery") or s:find("lb triple charge") or s:find("auto%-regen")
+           or s:find("spr %+%d+") or s:find("spirit %+%d+") or s:find("nirvana") or s:find("holy wand") then
+            return 5, "[CHOOSE THIS - LUMINARY BiS]"
+        elseif s:find("cura") or s:find("cure") or s:find("heal") or s:find("raise") or s:find("revive")
+           or s:find("regen") or s:find("cleanse") or s:find("esuna") or s:find("staff") or s:find("robe")
+           or s:find("rosary") or s:find("cheer") then
+            return 4, "[CHOOSE THIS - HEALER UPGRADE]"
+        elseif s:find("leah") or s:find("ayaka") or s:find("folka") or s:find("aerith") then
+            return 5, "[CHOOSE THIS - BEST HEALER VISION]"
+        end
+
+    elseif role == "Mechanist" then
+        -- Lid: Armor Break, Mental Break, Machine, Stagger
+        if s:find("break mastery") or s:find("armor break") or s:find("mental break") or s:find("weapon break")
+           or s:find("t%.r%.n%.d") or s:find("march of the machines") or s:find("speed %+%d+") then
+            return 5, "[CHOOSE THIS - MECHANIST BiS]"
+        elseif s:find("break") or s:find("wrench") or s:find("hammer") or s:find("machine") or s:find("shred")
+           or s:find("thunder") or s:find("stagger") then
+            return 4, "[CHOOSE THIS - MECHANIST UPGRADE]"
+        elseif s:find("cid") or s:find("rikku") or s:find("edgar") then
+            return 5, "[CHOOSE THIS - BREAK POWER BiS]"
+        end
+
+    elseif role == "Saboteur" then
+        -- Dark Fina: Dark magic, Dystopia, Rod, MAG+
+        if s:find("dystopia") or s:find("dual black magic") or s:find("dualcast") or s:find("mag %+%d+") then
+            return 5, "[CHOOSE THIS - SABOTEUR BiS]"
+        elseif s:find("dark") or s:find("nuke") or s:find("rod") or s:find("whip") or s:find("firaga") or s:find("blizzaga") or s:find("thundaga") then
+            return 4, "[CHOOSE THIS - MAGIC UPGRADE]"
+        end
+
+    elseif role == "Sage" then
+        -- Sakura: Thunder, Lightning, Sage BiS, MAG+
+        if s:find("sage") or s:find("thunder mastery") or s:find("rebel thunder") or s:find("dualcast") or s:find("mag %+%d+") then
+            return 5, "[CHOOSE THIS - SAGE BiS]"
+        elseif s:find("thunder") or s:find("lightning") or s:find("staff") or s:find("rod") then
+            return 4, "[CHOOSE THIS - SAGE UPGRADE]"
+        end
+
+    elseif role == "Tactician" then
+        if s:find("tactician") or s:find("stance") or s:find("grimoire") or s:find("dualcast") then
+            return 5, "[CHOOSE THIS - TACTICIAN BiS]"
+        end
+
+    elseif role == "Corsair" then
+        if s:find("gun") or s:find("rifle") or s:find("corsair") or s:find("quick draw") or s:find("crit") then
+            return 5, "[CHOOSE THIS - CORSAIR BiS]"
+        end
+    end
+
     return 0, nil
 end
 
@@ -592,15 +683,42 @@ function M.tick()
     lastScanTime = now
 
     pcall(function()
-        -- Cutscene / Outworld Gate: Only scan when equipment / ability UI widgets are active
-        local menu = FindFirstOf("WBP_UnitEquippedList_C")
-        if not (menu and menu:IsValid()) then
-            menu = FindFirstOf("WBP_UnitEquippedSkillList_C")
+        -- Cutscene / Outworld Gate: Only scan when equipment / ability / vision / mastery UI widgets are active
+        local inMenu = false
+        local menuWidgets = {
+            "WBP_UnitEquippedList_C",
+            "WBP_UnitEquippedSkillList_C",
+            "WBP_VisionList_C",
+            "WBP_UnitSkillList_C",
+            "WBP_UnitSkillTree_C",
+            "WBP_UnitEnhance_C",
+            "WBP_Mastery_C",
+            "WBP_AbilityTree_C",
+            "WBP_UnitList_C",
+            "WBP_CharaMenu_C",
+            "WBP_PartyMenu_C",
+            "WBP_Equipment_C",
+        }
+        for _, mwName in ipairs(menuWidgets) do
+            local mw = FindFirstOf(mwName)
+            if mw and mw:IsValid() then
+                inMenu = true
+                break
+            end
         end
-        if not (menu and menu:IsValid()) then
-            menu = FindFirstOf("WBP_VisionList_C")
+        if not inMenu then
+            -- Fallback: inspect UserWidgets on screen
+            local allW = FindAllOf("UserWidget")
+            for _, uw in ipairs(allW or {}) do
+                local un = uw:GetClass():GetName()
+                if (un:find("Equip") or un:find("Vision") or un:find("Skill") or un:find("Mastery") or un:find("Enhance"))
+                   and not un:find("Btl") then
+                    inMenu = true
+                    break
+                end
+            end
         end
-        if not (menu and menu:IsValid()) then return end
+        if not inMenu then return end
 
         local allTBs = FindAllOf("TextBlock")
         if not allTBs or #allTBs == 0 then return end

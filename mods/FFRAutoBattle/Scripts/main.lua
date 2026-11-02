@@ -895,58 +895,75 @@ local function skillTierBonus(skill)
 end
 
 -- Role Mastery Bonus: Auto-loads and prioritizes mastered abilities tailored to each character's specific role
+-- Fully Vision-Agnostic: Works across ANY equipped Vision, dynamically selecting best role abilities in combat!
 local function roleMasteryBonus(uid, skill, w)
-    if not skill or not skill.name or not uid then return 0 end
-    local sName = skill.name:lower()
+    if not skill or not uid then return 0 end
+    local sName = skill.name and skill.name:lower() or ""
     local who = unitName(uid):lower()
+    local sKind = skill.kind or ""
     local bonus = 0
 
     -- 1. Rain (The Sentinel Vanguard Tank)
-    if who:find("rain") or who:find("cecil") or who:find("wilhelm") or who:find("charlotte") then
-        if sName:find("provoke") or sName:find("cover") or sName:find("sentinel") or sName:find("taunt") then
-            bonus = bonus + 9000 -- BiS Sentinel Aggro & Team Guard
-        elseif sName:find("phalanx") or sName:find("iron wall") or sName:find("royal guard") or sName:find("defend") or sName:find("guard") then
-            bonus = bonus + 6000 -- Sentinel Damage Reduction & Barrier Stance
-        elseif sName:find("tackle") or sName:find("firaga blade") or sName:find("counter") or sName:find("arms akimbo") then
-            bonus = bonus + 5000 -- Stagger buildup & Counter Stagger
+    if who:find("rain") or who:find("cecil") or who:find("wilhelm") or who:find("charlotte") or who:find("snow") or who:find("basch") then
+        if sName:find("provoke") or sName:find("cover") or sName:find("sentinel") or sName:find("taunt")
+           or sKind == "provoke" or sKind == "cover" then
+            bonus = bonus + 9500 -- BiS Sentinel Aggro & Team Guard
+        elseif sName:find("phalanx") or sName:find("iron wall") or sName:find("royal guard") or sName:find("shield wall")
+           or sName:find("defend") or sName:find("guard") or sName:find("barrier") or sName:find("protect") or sKind == "defend" or sKind == "guard" then
+            bonus = bonus + 7000 -- Sentinel Damage Reduction & Barrier Stance
+        elseif sName:find("tackle") or sName:find("counter") or sName:find("arms akimbo") or sName:find("firaga blade") then
+            bonus = bonus + 5500 -- Stagger buildup & Counter Stagger
         elseif sName:find("infinity drive") or sName:find("crimson onslaught") then
-            bonus = bonus + 8500
+            bonus = bonus + 9000
         end
 
     -- 2. Lasswell (Breaker & Critical Boss Finisher)
-    elseif who:find("lasswell") or who:find("cloud") or who:find("sephiroth") or who:find("squall") then
-        if sName:find("null moon") then
+    elseif who:find("lasswell") or who:find("cloud") or who:find("sephiroth") or who:find("squall") or who:find("tidus") then
+        if sName:find("null moon") or sName:find("exorcising") then
             bonus = bonus + 9500 -- Guaranteed Critical Boss Execution
-        elseif sName:find("dawn frost") or sName:find("blizzaga blade") or sName:find("cross%-slash") or sName:find("blade torrent") then
-            bonus = bonus + 7500 -- Stagger 27 & Elemental Break
-        elseif sName:find("barrage") or sName:find("transient rite") or sName:find("scan & strike") then
-            bonus = bonus + 8000
+        elseif sName:find("dawn frost") or sName:find("blizzaga blade") or sName:find("cross%-slash") or sName:find("blade torrent") or sName:find("splitter") then
+            bonus = bonus + 8000 -- Stagger 27 & Elemental Break
+        elseif sName:find("barrage") or sName:find("transient rite") or sName:find("scan & strike") or sName:find("strike") or sName:find("slash") then
+            bonus = bonus + 7500
         end
 
     -- 3. Fina (Divine Luminary & Healer)
     elseif who:find("fina") or who:find("ayaka") or who:find("folka") or who:find("garnet") or who:find("aerith") then
-        if sName:find("curaja") or sName:find("curaga") or sName:find("arise") or sName:find("radiant restoration") then
+        if sName:find("curaja") or sName:find("curaga") or sName:find("arise") or sName:find("radiant restoration")
+           or (sKind == "heal" and (sName:find("cura") or sName:find("curaja"))) or sKind == "revive" then
             bonus = bonus + 9500 -- 100% Full Party Healing & Revive
-        elseif sName:find("cheer") or sName:find("haste") or sName:find("shell") or sName:find("protect") then
-            bonus = bonus + 6000 -- Party Buffing
+        elseif sName:find("cheer") or sName:find("haste") or sName:find("shell") or sName:find("protect") or sName:find("regen") or sKind == "buff" then
+            bonus = bonus + 6500 -- Party Buffing
         elseif sName:find("holy ray") or sName:find("banishga") or sName:find("dualcast") then
-            bonus = bonus + 5500
+            bonus = bonus + 6000
         end
 
     -- 4. Lid (Mechanist & Tactical Debuffer)
     elseif who:find("lid") or who:find("rikku") or who:find("edgar") then
-        if sName:find("armor break") or sName:find("mental break") or sName:find("weapon break") then
-            bonus = bonus + 8500 -- Armor Shred (-DEF / -SPR)
-        elseif sName:find("t.r.n.d") or sName:find("march of the machines") or sName:find("mechabo") then
-            bonus = bonus + 7500 -- Machine Stagger Bursts
+        if sName:find("armor break") or sName:find("mental break") or sName:find("weapon break") or sKind == "debuff" then
+            bonus = bonus + 9000 -- Armor Shred (-DEF / -SPR)
+        elseif sName:find("t.r.n.d") or sName:find("march of the machines") or sName:find("mechabo") or sName:find("wrench") or sName:find("hammer") then
+            bonus = bonus + 8000 -- Machine Stagger Bursts
         end
 
     -- 5. Sakura & Dark Fina (Mage Nuker & Elemental Catalyst)
     elseif who:find("sakura") or who:find("dark fina") or who:find("archwitch") or who:find("shantotto") or who:find("rydia") then
-        if sName:find("dystopia") or sName:find("alterna") or sName:find("thundaja") or sName:find("firaja") or sName:find("blizzaja") then
+        if sName:find("dystopia") or sName:find("alterna") or sName:find("thundaja") or sName:find("firaja") or sName:find("blizzaja") or sName:find("flare") or sName:find("meteor") then
             bonus = bonus + 9500 -- Tier 4 Pinnacle Magic Nukes
-        elseif sName:find("surge") or sName:find("colossal") or sName:find("dualcast") then
-            bonus = bonus + 8000
+        elseif sName:find("surge") or sName:find("colossal") or sName:find("dualcast") or sName:find("rebel thunder") then
+            bonus = bonus + 8500
+        end
+
+    -- 6. Nichol (Tactician & Synergist)
+    elseif who:find("nichol") or who:find("hope") then
+        if sName:find("stance") or sName:find("charge") or sName:find("bolster") or sName:find("dualcast") then
+            bonus = bonus + 8500
+        end
+
+    -- 7. Jake (Corsair & Gunner)
+    elseif who:find("jake") or who:find("vincent") or who:find("amelia") then
+        if sName:find("quick draw") or sName:find("snipe") or sName:find("bullet") or sName:find("fire") then
+            bonus = bonus + 8500
         end
     end
 
@@ -3524,11 +3541,15 @@ local function turn(uid, skills, w, phase)
     end
 
     -- Live Tank Aggro Indicator + Automated Profile
-    local tankStatus = "Threat: Low"
-    if Fight.claim and Fight.claim.provoke then
-        tankStatus = string.format("Aggro Secured (R%d)", Fight.rounds or 1)
+    -- Natural HUD: Shows initial engagement for 3.5s, then cleanly fades out for the rest of battle!
+    if not Fight.engagementBadgeShown then
+        Fight.engagementBadgeShown = true
+        local tankStatus = "Tactical Engage"
+        if Fight.claim and Fight.claim.provoke then
+            tankStatus = "Aggro Secured"
+        end
+        showBadge(string.format("[AUTO: %s]  |  %s", (autoProfileMode or "Auto"):upper(), tankStatus:upper()), 3.5)
     end
-    showBadge(string.format("[AUTO: %s]  |  %s", (autoProfileMode or "Auto"):upper(), tankStatus:upper()))
 
     local needProvoke = (not Fight.claim.provoke) or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 3)
     if needProvoke and phase == 0 and not alreadyFell and not allyCritical() and not dead then
@@ -4123,6 +4144,7 @@ end
 local function ensureBattle()
     if Fight.active then return end
     Fight.active = true
+    Fight.engagementBadgeShown = false
     Fight.number = Fight.number + 1
     Fight.boss = bossBattle()
     Fight.summoned = false
