@@ -13,6 +13,15 @@ This guide explains how to install the entire modpack, or easily pick and choose
 
 ---
 
+## Installing Paired Vortex PAK Mods
+If you also want to use the curated PAK mods that Fredoh pairs with this suite (like 4 Accessory Slots, 100% Steal, Item/Chest Markers, etc.):
+1. Install [Vortex Mod Manager](https://www.nexusmods.com/about/vortex/) and manage *Final Fantasy Resonance*.
+2. Open **[docs/VORTEX_RECOMMENDED_LOADOUT.md](docs/VORTEX_RECOMMENDED_LOADOUT.md)** and click the Nexus links for any mods you'd like.
+3. Click "Vortex Download" on Nexus to install and enable them.
+4. Vortex places the `.pak` files into `FFRS/Content/Paks/~mods/`. These run side-by-side with UE4SS with 0 conflicts!
+
+---
+
 ## Option A: Install Everything (Recommended)
 1. Download or clone this repository.
 2. Copy all folders from the [`mods/`](mods/) directory into your game's `ue4ss/Mods/` directory:

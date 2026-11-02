@@ -47,6 +47,26 @@ FFR-Resonance-Modpack/
 
 ---
 
+## 🎮 Vortex Companion Mod Loadout (Paired PAK Mods)
+In addition to the UE4SS Lua mods above, Fredoh pairs these mods with a curated set of **Vortex PAK mods** (installed via Vortex from Nexus Mods into `FFRS/Content/Paks/~mods`). 
+
+These mods modify underlying game tables and balance, while the UE4SS suite handles live scripting and AI automation.
+
+| Category | Recommended Vortex Mods | What They Do |
+| :--- | :--- | :--- |
+| **Gear & Slots** | [Equip 4 Accessories (#105)](https://www.nexusmods.com/finalfantasyresonance/mods/105) | Doubles accessory capacity (2 -> 4 slots) for maximum build synergy. |
+| **Abilities & AP** | [Free AP Ability Permanent (#57)](https://www.nexusmods.com/finalfantasyresonance/mods/57) | Mastered permanent traits cost 0 AP to equip. |
+| **Exploration** | [Item & Chest Markers (#25)](https://www.nexusmods.com/finalfantasyresonance/mods/25), [Save Anywhere (#95)](https://www.nexusmods.com/finalfantasyresonance/mods/95) | Shows hidden chests on minimap; allows manual saves anytime. |
+| **Combat & Drops** | [Steal Always 100% (#52)](https://www.nexusmods.com/finalfantasyresonance/mods/52), [Enemies Drop 100% (#61)](https://www.nexusmods.com/finalfantasyresonance/mods/61) | Guarantees all steals succeed and enemies always drop their loot. |
+| **Rare Encounters** | [Cactuars NEVER ESCAPE (#45)](https://www.nexusmods.com/finalfantasyresonance/mods/45) | Prevents high-value Cactuars from running away. |
+| **Progression Pacing** | [Half EXP Characters (#7)](https://www.nexusmods.com/finalfantasyresonance/mods/7), [Half EXP Vision MR (#8)](https://www.nexusmods.com/finalfantasyresonance/mods/8), [ExpX2 (#36)](https://www.nexusmods.com/finalfantasyresonance/mods/36), [MRP Multiplier x2 (#37)](https://www.nexusmods.com/finalfantasyresonance/mods/37) | Streamlines character and Vision MR grinding. |
+| **UI & Numbers** | [Detailed Descriptions (#3)](https://www.nexusmods.com/finalfantasyresonance/mods/3), [Damage & Break Prediction (#16)](https://www.nexusmods.com/finalfantasyresonance/mods/16) | Exact damage formulas, scaling percentages, and damage prediction. |
+| **Economy** | [Half Price Shop & Sell Higher (#6)](https://www.nexusmods.com/finalfantasyresonance/mods/6), [Item Shop Sells Everything (#4)](https://www.nexusmods.com/finalfantasyresonance/mods/4) | Eliminates gil shortage and inventory hunting across towns. |
+
+👉 **[View the Complete Vortex Loadout Guide with All Download Links & Synergies](docs/VORTEX_RECOMMENDED_LOADOUT.md)**
+
+---
+
 ## 🚀 How to Install & Hand-Pick
 
 ### Quickest Way: Install Everything
