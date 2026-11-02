@@ -3925,6 +3925,8 @@ end
 local function finishBattle()
     if not Fight.active then return end
     Fight.active = false
+    if Hud and Hud.advisorShow then Hud.advisorShow(nil) end
+    lastAdvisorHudText = ""
     local turns = #Fight.actions
     local broke = (#Fight.broke > 0) and table.concat(Fight.broke, ", ") or "nobody broken"
     local fell = (#Fight.fell > 0) and table.concat(Fight.fell, ", ") or "no one fell"
@@ -4899,6 +4901,60 @@ local function toggleAdvisorHud()
     end
 end
 
+local function fmtHudNum(n)
+    if not n then return "0" end
+    local s = tostring(math.floor(math.abs(n)))
+    local formatted = s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+    if n < 0 then return "-" .. formatted end
+    return formatted
+end
+
+local function updatePartyCombatHud()
+    if not (Fight and Fight.active) then
+        if lastAdvisorHudText ~= "" then
+            Hud.advisorShow(nil)
+            lastAdvisorHudText = ""
+        end
+        return
+    end
+
+    if not advisorVisible then return end
+
+    local allies = friendIds()
+    if not allies or #allies == 0 then return end
+
+    local lines = {}
+    lines[#lines + 1] = "================ PARTY TACTICAL INTEL ================"
+    for _, uid in ipairs(allies) do
+        local name = unitName(uid)
+        local curHp = stat(uid, PARAM.HP, false) or 0
+        local maxHp = stat(uid, PARAM.HP, true) or 1
+        local hpPct = math.floor((curHp / maxHp) * 100 + 0.5)
+
+        local curMp = stat(uid, PARAM.MP, false) or 0
+        local maxMp = stat(uid, PARAM.MP, true) or 1
+
+        local curLb = stat(uid, PARAM.LB, false) or 0
+        local maxLb = stat(uid, PARAM.LB, true) or 100
+        if maxLb <= 0 then maxLb = 100 end
+        local lbPct = math.min(100, math.floor((curLb / maxLb) * 100 + 0.5))
+
+        local lbStatus = (lbPct >= 100) and "[LB READY! ★]" or string.format("LB: %d%%", lbPct)
+        local alert = ""
+        if hpPct <= 0 then alert = " [FALLEN]"
+        elseif hpPct <= 25 then alert = " [DANGER!]" end
+
+        lines[#lines + 1] = string.format(" %-9s: HP %5s/%-5s (%3d%%%s) | MP %3d/%-3d | %s",
+            name, fmtHudNum(curHp), fmtHudNum(maxHp), hpPct, alert, curMp, maxMp, lbStatus)
+    end
+    lines[#lines + 1] = "======================================================"
+    local fullText = table.concat(lines, "\n")
+    if fullText ~= lastAdvisorHudText then
+        lastAdvisorHudText = fullText
+        Hud.advisorShow(fullText)
+    end
+end
+
 local speedDone = false
 local function applySpeed()
     if speedDone or cfg.BattleSpeed == 1 then speedDone = true return end
@@ -5021,6 +5077,7 @@ end
 
 local absent = 0
 gameLoop(400, resonanceWatch)
+gameLoop(300, updatePartyCombatHud)
 gameLoop(700, function()
     applySpeed()
     buildSkillIndex()

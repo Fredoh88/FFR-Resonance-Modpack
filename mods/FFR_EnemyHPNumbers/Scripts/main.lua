@@ -604,6 +604,14 @@ local function weaknessTag(name)
     return ""
 end
 
+local function fmtNum(n)
+    if not n then return "0" end
+    local s = tostring(math.floor(math.abs(n)))
+    local formatted = s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+    if n < 0 then return "-" .. formatted end
+    return formatted
+end
+
 local function update(e, pv)
     local vm = viewModel(e)
     local hpVm, brkVm = get(vm, "HitPointVM"), get(vm, "BreakPointVM")
@@ -615,29 +623,45 @@ local function update(e, pv)
     local name = enemyNameOf(e)
     if name then wTag = weaknessTag(name) end
 
+    local hpPct = (hp and hpMax and hpMax > 0) and math.floor((hp / hpMax) * 100 + 0.5) or 0
+    local brkPct = (brk and brkMax and brkMax > 0) and math.floor((brk / brkMax) * 100 + 0.5) or 0
+
     -- No VM bound yet (bar being set up): show nothing rather than a guess.
     if p and p.hpAfter and hp then
+        local dmg = math.max(0, hp - p.hpAfter)
+        local afterPct = (hpMax and hpMax > 0) and math.floor((p.hpAfter / hpMax) * 100 + 0.5) or 0
         if p.kill == "yes" then
-            setText(e, "hpStr", e.hp, string.format("HP %d " .. CONFIG.ARROW .. " KILL%s", hp, wTag), CONFIG.COLOR_KILL)
+            setText(e, "hpStr", e.hp, string.format("HP %s " .. CONFIG.ARROW .. " 0 [LETHAL KILL! -%s]%s", fmtNum(hp), fmtNum(hp), wTag), CONFIG.COLOR_KILL)
         elseif p.kill == "maybe" then
-            setText(e, "hpStr", e.hp, string.format("HP %d " .. CONFIG.ARROW .. " ~%d KILL?%s", hp, p.hpAfter, wTag), CONFIG.COLOR_KILL)
+            setText(e, "hpStr", e.hp, string.format("HP %s " .. CONFIG.ARROW .. " ~%s (-%s | %d%%) [KILL?]%s", fmtNum(hp), fmtNum(p.hpAfter), fmtNum(dmg), afterPct, wTag), CONFIG.COLOR_KILL)
         else
-            setText(e, "hpStr", e.hp, string.format("HP %d " .. CONFIG.ARROW .. " ~%d%s", hp, p.hpAfter, wTag), CONFIG.COLOR_HP_PREV)
+            setText(e, "hpStr", e.hp, string.format("HP %s " .. CONFIG.ARROW .. " ~%s (-%s | %d%%)%s", fmtNum(hp), fmtNum(p.hpAfter), fmtNum(dmg), afterPct, wTag), CONFIG.COLOR_HP_PREV)
         end
         setBarPreview(e, (hpMax and hpMax > 0) and (p.hpAfter / hpMax) or nil)
     else
-        setText(e, "hpStr", e.hp, (hp and hpMax) and string.format("HP %d/%d%s", hp, hpMax, wTag) or "", CONFIG.COLOR_HP)
+        local hpColor = CONFIG.COLOR_HP
+        local hpSuffix = string.format(" (%d%%)", hpPct)
+        if hpPct <= 25 and hpPct > 0 then
+            hpColor = { R = 1.0, G = 0.85, B = 0.3, A = 1.0 }
+            hpSuffix = string.format(" (%d%% EXECUTE!)", hpPct)
+        end
+        setText(e, "hpStr", e.hp, (hp and hpMax) and string.format("HP %s/%s%s%s", fmtNum(hp), fmtNum(hpMax), hpSuffix, wTag) or "", hpColor)
         setBarPreview(e, nil)
     end
 
     if p and p.brkAfter and brk and p.brkAfter ~= brk then
         if p.brkAfter <= 0 then
-            setText(e, "brkStr", e.brk, string.format("Break %d " .. CONFIG.ARROW .. " BREAK", brk), CONFIG.COLOR_BREAK_ON)
+            setText(e, "brkStr", e.brk, string.format("Break %s " .. CONFIG.ARROW .. " [STAGGER ON HIT!]", fmtNum(brk)), CONFIG.COLOR_BREAK_ON)
         else
-            setText(e, "brkStr", e.brk, string.format("Break %d " .. CONFIG.ARROW .. " %d", brk, p.brkAfter), CONFIG.COLOR_BRK_PREV)
+            local brkDmg = math.max(0, brk - p.brkAfter)
+            setText(e, "brkStr", e.brk, string.format("Break %s " .. CONFIG.ARROW .. " %s (-%s)", fmtNum(brk), fmtNum(p.brkAfter), fmtNum(brkDmg)), CONFIG.COLOR_BRK_PREV)
         end
     else
-        setText(e, "brkStr", e.brk, (brk and brkMax) and string.format("Break %d/%d", brk, brkMax) or "", CONFIG.COLOR_BREAK)
+        if brk and brk <= 0 and (brkMax and brkMax > 0) then
+            setText(e, "brkStr", e.brk, "★ [STAGGERED - x2.0 BONUS DMG!]", CONFIG.COLOR_BREAK_ON)
+        else
+            setText(e, "brkStr", e.brk, (brk and brkMax) and string.format("Break %s/%s (%d%%)", fmtNum(brk), fmtNum(brkMax), brkPct) or "", CONFIG.COLOR_BREAK)
+        end
     end
 end
 

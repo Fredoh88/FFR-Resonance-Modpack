@@ -514,7 +514,29 @@ end
 
 local lastScanTime = 0
 
+local printedWidgets = false
+
 function M.tick()
+    if not printedWidgets then
+        printedWidgets = true
+        pcall(function()
+            local all = FindAllOf("UserWidget")
+            local found = {}
+            for _, w in ipairs(all or {}) do
+                local n = w:GetClass():GetName()
+                if n:find("Btl") or n:find("Party") or n:find("Gauge") or n:find("Unit") then
+                    found[n] = (found[n] or 0) + 1
+                end
+            end
+            print("=== LIVE WIDGETS FOUND IN GAME ===")
+            local keys = {}
+            for k in pairs(found) do keys[#keys + 1] = k end
+            table.sort(keys)
+            for _, k in ipairs(keys) do
+                print(string.format("  [WIDGET] %s : %d", k, found[k]))
+            end
+        end)
+    end
     local now = os.clock()
     if now - lastScanTime < 1.0 then return end
     lastScanTime = now
