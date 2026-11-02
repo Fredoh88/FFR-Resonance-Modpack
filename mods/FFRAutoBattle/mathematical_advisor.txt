@@ -1,0 +1,53 @@
+================================================================================
+        FINAL FANTASY RESONANCE - MATHEMATICAL GEAR & TALENT ADVISOR           
+================================================================================
+
+[Rain] Role: Phys Breaker
+  - Total Equipped Skills: 30 (Phys: 6, Mag: 2, Support: 0)
+  - Elements Covered: fire, thunder, water
+  - Best Stagger Skill: Cross-Slash (Stagger Power: 40)
+  - Best Burst Skill: Cross-Slash (Raw Power: 45)
+  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
+      * Replace Fire -> Firaga (0 AP)
+
+[Lasswell] Role: Healer
+  - Total Equipped Skills: 28 (Phys: 4, Mag: 4, Support: 6)
+  - Elements Covered: ice, light
+  - Best Stagger Skill: Curaga (Stagger Power: 60)
+  - Best Burst Skill: Curaga (Raw Power: 1500)
+  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
+      * Replace Cure -> Curaja (0 AP)
+      * Replace Cura -> Curaja (0 AP)
+      * Replace Blizzard -> Blizzaga (0 AP)
+
+[Fina] Role: Healer
+  - Total Equipped Skills: 33 (Phys: 1, Mag: 0, Support: 7)
+  - Elements Covered: earth, light, thunder
+  - Best Stagger Skill: Cura (Stagger Power: 55)
+  - Best Burst Skill: Cura (Raw Power: 500)
+  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
+      * Replace Cure -> Curaja (0 AP)
+      * Replace Cura -> Curaja (0 AP)
+
+[Lid] Role: Mage Nuker
+  - Total Equipped Skills: 20 (Phys: 2, Mag: 4, Support: 0)
+  - Elements Covered: earth, fire, ice, water
+  - Best Stagger Skill: March of the Machines (Stagger Power: 40)
+  - Best Burst Skill: Fira (Raw Power: 33)
+  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
+      * Replace Fire -> Firaga (0 AP)
+      * Replace Blizzard -> Blizzaga (0 AP)
+      * Replace Water -> Waterga (0 AP)
+
+--------------------------------------------------------------------------------
+                      PARTY ELEMENTAL & BREAK EFFICIENCY                        
+--------------------------------------------------------------------------------
+Elemental Coverage: 5/7 (71%)
+  Covered: fire, ice, thunder, water, light
+  Missing: wind, dark
+
+MATHEMATICAL PRINCIPLE:
+  Hitting an elemental weakness gives +200% Break (3.0x multiplier) and bypasses armor.
+  Recommendation: Slot abilities covering wind, dark across your party
+  to ensure guaranteed 3.0x Stagger against all mob types (Beasts, Mechs, Undead).
+================================================================================

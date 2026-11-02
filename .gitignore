@@ -1,0 +1,12 @@
+# Logs and runtime dumps
+*.log
+*.tmp
+battle_log.txt
+state.txt
+AGENT-CHAT.txt
+__folder_managed*
+
+# OS artifacts
+Thumbs.db
+.DS_Store
+Desktop.ini
