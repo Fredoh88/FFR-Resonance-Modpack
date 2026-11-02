@@ -3316,7 +3316,7 @@ local function turn(uid, skills, w, phase)
             if potGift then
                 Fight.claim.potGiven = true
                 if Hud and Hud.toast then
-                    Hud.toast(string.format("🏺 Magic Pot: Fed %s to %s! Instant Victory!", potGift.name or "Ether", pot.name))
+                    Hud.toast(string.format("[MAGIC POT] Fed %s to %s - VICTORY!", potGift.name or "Ether", pot.name))
                 end
                 log("Magic Pot puzzle: %s feeds %s to %s (id %s)", unitName(uid), potGift.name or "Ether", pot.name, tostring(pot.id))
                 appendLog(string.format("  [MAGIC POT PUZZLE] %s gives %s to %s -> Instant Victory Payoff!", unitName(uid), potGift.name or "Ether", pot.name))
@@ -3324,7 +3324,7 @@ local function turn(uid, skills, w, phase)
             else
                 if not Fight.noEtherWarned then
                     Fight.noEtherWarned = true
-                    if Hud and Hud.toast then Hud.toast("⚠️ Magic Pot wants an Ether! (No Ethers in bag)") end
+                    if Hud and Hud.toast then Hud.toast("[MAGIC POT] Request: Ether (None in inventory!)") end
                     log("Magic Pot puzzle: %s wants an Ether, but bag has none!", pot.name)
                     appendLog("  [MAGIC POT WARNING] " .. pot.name .. " wants an Ether, but inventory has none!")
                 end
@@ -3353,7 +3353,7 @@ local function turn(uid, skills, w, phase)
             if card and card.danger and #card.danger > 0 then
                 Fight.dangerWarned = true
                 local moves = table.concat(card.danger, ", ")
-                if Hud.toast then Hud.toast(string.format("âš ï¸ DANGER: %s Threat! [%s]", u.name, moves)) end
+                if Hud.toast then Hud.toast(string.format("[DANGER] %s Threat! [%s]", u.name, moves)) end
                 log("Boss danger warning: %s [%s]", u.name, moves)
                 appendLog("  Boss danger warning: " .. u.name .. " [" .. moves .. "]")
                 break
@@ -3362,11 +3362,11 @@ local function turn(uid, skills, w, phase)
     end
 
     -- Live Tank Aggro Indicator + Automated Profile
-    local tankStatus = "âš ï¸ Threat Free"
+    local tankStatus = "Threat: Low"
     if Fight.claim and Fight.claim.provoke then
-        tankStatus = string.format("ðŸ›¡ï¸ Aggro Secured | Round %d", Fight.rounds or 1)
+        tankStatus = string.format("Aggro Secured (R%d)", Fight.rounds or 1)
     end
-    showBadge(string.format("[%s]  %s", autoProfileMode or "Auto", tankStatus))
+    showBadge(string.format("[AUTO: %s]  |  %s", (autoProfileMode or "Auto"):upper(), tankStatus:upper()))
 
     local needProvoke = (not Fight.claim.provoke) or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 3)
     if needProvoke and phase == 0 and not alreadyFell and not allyCritical() and not dead then
@@ -3831,7 +3831,7 @@ local function consider(uid)
             if advSummary then
                 log("[MATH ADVISOR] %s", advSummary)
                 appendLog("  [MATH ADVISOR] " .. advSummary)
-                if Hud.toast then Hud.toast("🗺️ Radar: " .. advSummary) end
+                if Hud.toast then Hud.toast("[RADAR] " .. advSummary) end
             end
         end
     end
@@ -3911,7 +3911,7 @@ local function toggleCombatSpeed()
         ExecuteConsoleCommand(string.format("slomo %.1f", spd))
     end)
     local tag = (spd == 1.0) and "Normal" or ((spd == 1.5) and "Fast" or "Turbo")
-    showToast(string.format("âš¡ Combat Speed: %.1fx (%s)", spd, tag))
+    showToast(string.format("[SPEED] Combat Speed: %.1fx (%s)", spd, tag))
     log("Combat speed set to %.1fx (%s)", spd, tag)
 end
 
@@ -3945,12 +3945,12 @@ local function finishBattle()
     appendLog("-- " .. line)
     appendLog("")
     log("battle %d done: %s", Fight.number, line)
-    local bonusTag = Fight.resonanceSent and " [â˜… Overkill Drop Bonus]" or ""
+    local bonusTag = Fight.resonanceSent and " [Overkill Drop Bonus]" or ""
     if Fight.stolenLoot and #Fight.stolenLoot > 0 then
         local names = table.concat(Fight.stolenLoot, ", ")
-        if Hud.toast then Hud.toast("ðŸ† Victory!" .. bonusTag .. " Loot Stolen from: " .. names) end
+        if Hud.toast then Hud.toast("[VICTORY]" .. bonusTag .. " Loot Stolen from: " .. names) end
     else
-        if Hud.toast then Hud.toast(string.format("ðŸ† Victory!%s Battle %d Cleared (%d actions)", bonusTag, Fight.number, turns)) end
+        if Hud.toast then Hud.toast(string.format("[VICTORY]%s Battle %d Cleared (%d actions)", bonusTag, Fight.number, turns)) end
     end
     showBadge(nil)
     resetCombatSpeed()
@@ -4637,8 +4637,14 @@ local function makeWidget(kind, ax, ay, alx, aly, size)
     local border = StaticConstructObject(findClass("/Script/UMG.Border"), tree, FName(base .. "_Border"))
     local text = StaticConstructObject(findClass("/Script/UMG.TextBlock"), tree, FName(base .. "_Text"))
     border:SetContent(text)
-    border:SetBrushColor({ R = 0.02, G = 0.03, B = 0.05, A = 0.72 })
-    border:SetPadding({ Left = 14, Top = 6, Right = 14, Bottom = 6 })
+    if kind == "badge" then
+        -- Ultra-sleek, seamless in-game JRPG tactical HUD:
+        border:SetBrushColor({ R = 0.015, G = 0.025, B = 0.055, A = 0.68 })
+        border:SetPadding({ Left = 10, Top = 3, Right = 10, Bottom = 3 })
+    else
+        border:SetBrushColor({ R = 0.02, G = 0.03, B = 0.05, A = 0.72 })
+        border:SetPadding({ Left = 14, Top = 6, Right = 14, Bottom = 6 })
+    end
     local slot = canvas:AddChildToCanvas(border)
     slot:SetAutoSize(true)
     slot:SetAnchors({ Minimum = { X = ax, Y = ay }, Maximum = { X = ax, Y = ay } })
@@ -4647,7 +4653,12 @@ local function makeWidget(kind, ax, ay, alx, aly, size)
     local font = text.Font
     font.Size = size
     text:SetFont(font)
-    text:SetColorAndOpacity({ SpecifiedColor = { R = 0.93, G = 0.86, B = 0.62, A = 1 }, ColorUseRule = 0 })
+    if kind == "badge" then
+        -- Subtle champagne gold text
+        text:SetColorAndOpacity({ SpecifiedColor = { R = 0.94, G = 0.88, B = 0.68, A = 0.95 }, ColorUseRule = 0 })
+    else
+        text:SetColorAndOpacity({ SpecifiedColor = { R = 0.93, G = 0.86, B = 0.62, A = 1 }, ColorUseRule = 0 })
+    end
     pcall(function() widget:SetIsFocusable(false) end)
     pcall(function() text:SetIsFocusable(false) end)
     widget:SetVisibility(1)
@@ -4668,7 +4679,7 @@ local function widget(kind)
     elseif kind == "advisor" then
         w = makeWidget(kind, 0.98, 0.04, 1.0, 0.0, 13)
     else
-        w = makeWidget(kind, 0.012, 0.90, 0.0, 1.0, 15)
+        w = makeWidget(kind, 0.012, 0.91, 0.0, 1.0, 11)
     end
     Hud.box[kind] = w
     return w
@@ -4939,7 +4950,7 @@ local function updatePartyCombatHud()
         if maxLb <= 0 then maxLb = 100 end
         local lbPct = math.min(100, math.floor((curLb / maxLb) * 100 + 0.5))
 
-        local lbStatus = (lbPct >= 100) and "[LB READY! ★]" or string.format("LB: %d%%", lbPct)
+        local lbStatus = (lbPct >= 100) and "[LB READY!]" or string.format("LB: %d%%", lbPct)
         local alert = ""
         if hpPct <= 0 then alert = " [FALLEN]"
         elseif hpPct <= 25 then alert = " [DANGER!]" end
@@ -4975,7 +4986,7 @@ local function updatePartyCombatHud()
             local eLvlStr = eLvl and string.format("[Lv.%2d] ", eLvl) or ""
 
             local isStaggered = broken(eid)
-            local statusTag = isStaggered and "★ [STAGGERED! x2.0 DMG]" or ""
+            local statusTag = isStaggered and "[STAGGERED! x2.0 DMG]" or ""
             if not isStaggered and eHpPct <= 25 and eHpPct > 0 then
                 statusTag = "[EXECUTE!]"
             end
