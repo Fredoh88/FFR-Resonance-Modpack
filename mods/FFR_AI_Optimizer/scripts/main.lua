@@ -122,8 +122,9 @@ local function getSpeedToastWidget()
         if not SpeedHud.toast.widget:IsInViewport() then SpeedHud.toast.widget:AddToViewport(1500) end
         return SpeedHud.toast
     end
-    -- Center toast: ax=0.5, ay=0.18, alx=0.5, aly=0.5, size=20
-    SpeedHud.toast = makeSpeedWidget("toast", 0.5, 0.18, 0.5, 0.5, 20, { R = 1.0, G = 0.92, B = 0.40, A = 1.0 })
+    -- Clean bottom-center toast (never overlaps top-left/top-center quest & chapter text):
+    -- ax=0.5, ay=0.85, alx=0.5, aly=0.5, size=15
+    SpeedHud.toast = makeSpeedWidget("toast", 0.5, 0.85, 0.5, 0.5, 15, { R = 1.0, G = 0.92, B = 0.40, A = 1.0 })
     return SpeedHud.toast
 end
 
@@ -132,9 +133,9 @@ local function getSpeedBadgeWidget()
         if not SpeedHud.badge.widget:IsInViewport() then SpeedHud.badge.widget:AddToViewport(1200) end
         return SpeedHud.badge
     end
-    -- Clean top-center banner (completely away from top-left quest text):
-    -- ax=0.5, ay=0.06, alx=0.5, aly=0.0, size=15
-    SpeedHud.badge = makeSpeedWidget("badge", 0.5, 0.06, 0.5, 0.0, 15, { R = 0.0, G = 0.90, B = 1.0, A = 1.0 })
+    -- Sleek bottom-center badge (completely clear of top quest objectives, chapter banners & minimap):
+    -- ax=0.5, ay=0.88, alx=0.5, aly=0.5, size=14
+    SpeedHud.badge = makeSpeedWidget("badge", 0.5, 0.88, 0.5, 0.5, 14, { R = 0.0, G = 0.90, B = 1.0, A = 1.0 })
     return SpeedHud.badge
 end
 
@@ -148,7 +149,7 @@ local function ShowSpeedToast(text, color)
                 w.text:SetColorAndOpacity({ SpecifiedColor = color, ColorUseRule = 0 })
             end
             w.widget:SetVisibility(3) -- HitTestInvisible (visible)
-            SpeedHud.toastHideTime = os.clock() + 2.5 -- Stays visible for 2.5 seconds
+            SpeedHud.toastHideTime = os.clock() + 1.8 -- Fades away quickly after 1.8 seconds
         end)
     end)
 end
@@ -165,7 +166,8 @@ local function UpdateSpeedBadge(duration)
                 return
             end
 
-            SpeedHud.badgeHideTime = os.clock() + (duration or 3.0)
+            -- Auto-fades after 1.8 seconds so it never blocks any gameplay area
+            SpeedHud.badgeHideTime = os.clock() + (duration or 1.8)
 
             if QoL.SpeedIdx == 1 then
                 -- Normal walk: Neutral Silver
@@ -262,8 +264,8 @@ QoL.ToggleSprint = function()
         updated = 1
     end
 
-    -- Show clean top-center speed notification (fades out automatically after 3.0s)
-    UpdateSpeedBadge(3.0)
+    -- Show unobtrusive bottom-center speed notification (fades out automatically after 1.8s)
+    UpdateSpeedBadge(1.8)
 
     print(string.format("[FFR QoL] Outworld Movement: %s (MaxWalkSpeed = %.0f, updated %d player pawn)\n",
         label, currentSpeed, updated))
