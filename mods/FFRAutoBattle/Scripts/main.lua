@@ -1954,19 +1954,24 @@ local function pickFinish(uid, finishes, w)
         if s.attr == ATTR.FINISH then list[#list + 1] = s end
     end
     if #list == 0 then return nil end
+
     local hurt, wounded = nil, 0
     for _, u in ipairs(w.allies or {}) do
         if not u.dead then
             if not hurt or (u.hp or 1) < (hurt.hp or 1) then hurt = u end
-            if (u.hp or 1) < 0.40 then wounded = wounded + 1 end
+            if (u.hp or 1) < 0.35 then wounded = wounded + 1 end
         end
     end
+
     local function emit(skill, reason, targets, isAll, score)
         local choice = finishChoice(uid, skill, reason, targets, isAll)
         if choice then choice.score = score end
         return choice
     end
-    if hurt and ((hurt.hp or 1) < 0.40 or wounded >= 2) then
+
+    -- 1. Emergency Healing / Revive Resonance Finisher:
+    -- If ally is critically low (< 35% HP) or multiple allies are wounded, save the party immediately
+    if hurt and ((hurt.hp or 1) < 0.35 or wounded >= 2) then
         for _, s in ipairs(list) do
             local heal = s.kind == "heal" or s.kind == "revive" or (s.known and s.known.use == "heal")
             if heal then
@@ -1976,41 +1981,136 @@ local function pickFinish(uid, finishes, w)
             end
         end
     end
-    local best, bestR = nil, -1
+
+    -- 2. Character Offensive Profile & Stat Multipliers:
+    -- Physical attackers (Lasswell, Cloud, Rain, Squall) scale harder with physical finishers
+    -- Magic nukers (Dark Fina, Sakura, Nichol) scale harder with magical finishers
+    local uName = unitName(uid):lower()
+    local isPhysDps = (uName:find("lasswell") ~= nil or uName:find("cloud") ~= nil or uName:find("sephiroth") ~= nil
+        or uName:find("tidus") ~= nil or uName:find("squall") ~= nil or uName:find("rain") ~= nil or uName:find("raegen") ~= nil)
+    local isMagDps = (uName:find("dark fina") ~= nil or uName:find("sakura") ~= nil or uName:find("archwitch") ~= nil
+        or uName:find("shantotto") ~= nil or uName:find("rydia") ~= nil)
+
+    local enemies = w.enemies or {}
+    if #enemies == 0 then
+        -- Default fallback if no enemies detected
+        return emit(list[1], "resonance field", { uid }, false, 10)
+    end
+
+    -- 3. Comprehensive (Skill x Target) Multiplier & Synergy Evaluation for Maximum Damage
+    local bestSkill, bestTarget, bestScore, bestReason, bestIsAll = nil, nil, -1, "", false
+
     for _, s in ipairs(list) do
         local support = s.kind == "heal" or s.kind == "buff" or s.kind == "revive"
             or (s.known and (s.known.use == "heal" or s.known.use == "buff" or s.known.use == "guardbuff"))
+        
         if not support then
-            local pow = offenseOf(s)
-            local factor = 1
-            for _, u in ipairs(w.enemies or {}) do
-                local f = elementFactor(s, u)
-                if f > factor then factor = f end
-            end
-            if factor > 0 then
-                local r = pow * ((factor >= 3) and 1.5 or factor)
-                if r > bestR then best, bestR = s, r end
+            local info = s.known or knownOf(s)
+            local isPhys = (info and info.phys) or s.phys
+            local isMag = (info and info.magic) or s.magic
+            local basePow = offenseOf(s) or 100
+            if basePow < 10 then basePow = 100 end
+
+            -- Caster stat affinity bonus
+            local casterScale = 1.0
+            if isPhys and isPhysDps then casterScale = 1.35 end
+            if isMag and isMagDps then casterScale = 1.35 end
+            if uName:find("lasswell") ~= nil and isPhys then casterScale = casterScale * 1.25 end -- High Crit assassin burst
+
+            local isAoE = aoeOf(s) or partyOf(s)
+
+            if isAoE and #enemies > 1 then
+                -- AoE Finisher: Evaluates total combined battle damage across all living enemies
+                local totalAoeScore = 0
+                local weaknessesHit = 0
+                for _, u in ipairs(enemies) do
+                    local factor = elementFactor(s, u)
+                    if factor > 0 then
+                        local enemyMult = (factor >= 3) and 2.5 or factor
+                        if u.broken or broken(u.id) then enemyMult = enemyMult * 2.2 end
+                        if factor >= 3 then weaknessesHit = weaknessesHit + 1 end
+                        totalAoeScore = totalAoeScore + (basePow * enemyMult * casterScale)
+                    end
+                end
+                
+                if totalAoeScore > bestScore then
+                    bestScore = totalAoeScore
+                    bestSkill = s
+                    bestTarget = enemies[1]
+                    bestIsAll = true
+                    bestReason = string.format("AoE Resonance Cleave (%d foes%s)",
+                        #enemies, weaknessesHit > 0 and (", " .. weaknessesHit .. " weak") or "")
+                end
+            else
+                -- Single-Target Finisher: Evaluates against each individual enemy to find optimal target
+                for _, u in ipairs(enemies) do
+                    local factor = elementFactor(s, u)
+                    -- If target absorbs or nullifies this element, factor is 0 -> skip completely
+                    if factor > 0 then
+                        local mult = factor
+                        local tags = {}
+
+                        -- Elemental Weakness (3.0x in FFRS)
+                        if factor >= 3 then
+                            mult = mult * 2.5
+                            tags[#tags + 1] = "Weakness x3"
+                        elseif factor < 1.0 then
+                            mult = mult * 0.4 -- Penalize resisted elements
+                        end
+
+                        -- Staggered / Broken Target Multiplier (2.2x damage & guaranteed Overkill drop payout!)
+                        local isStaggered = u.broken or broken(u.id)
+                        if isStaggered then
+                            mult = mult * 2.2
+                            tags[#tags + 1] = "STAGGERED x2.2"
+                        end
+
+                        -- Boss / High-Threat Priority (Ensures massive finisher isn't wasted on a 1-HP minion)
+                        local isBoss = (Fight and Fight.boss and u.id == Fight.boss) or (u.name and u.name:lower():find("boss") ~= nil)
+                        if isBoss then
+                            mult = mult * 1.4
+                            tags[#tags + 1] = "Boss Priority"
+                        elseif (u.hp or 1) < 0.20 and not isStaggered then
+                            mult = mult * 1.15
+                            tags[#tags + 1] = "Execute"
+                        end
+
+                        -- Debuff Synergies (DEF Break, SPR Break)
+                        local uStatuses = u.statuses or statuses(u.id) or {}
+                        if isPhys and (uStatuses[32] or (Fight and Fight.debuffOn and Fight.debuffOn[u.id] and Fight.debuffOn[u.id]["def"])) then
+                            mult = mult * 1.25
+                            tags[#tags + 1] = "Def Broken"
+                        end
+                        if isMag and (uStatuses[33] or (Fight and Fight.debuffOn and Fight.debuffOn[u.id] and Fight.debuffOn[u.id]["spr"])) then
+                            mult = mult * 1.25
+                            tags[#tags + 1] = "Spr Broken"
+                        end
+
+                        local moveScore = basePow * mult * casterScale
+                        if moveScore > bestScore then
+                            bestScore = moveScore
+                            bestSkill = s
+                            bestTarget = u
+                            bestIsAll = false
+                            local tagStr = #tags > 0 and (" [" .. table.concat(tags, ", ") .. "]") or ""
+                            bestReason = string.format("resonance %s on %s%s", s.name or "Finisher", u.name or "Foe", tagStr)
+                        end
+                    end
+                end
             end
         end
     end
-    if not best then best, bestR = list[1], 10 end
-    local support = best.kind == "heal" or best.kind == "buff" or best.kind == "revive"
-    local foe = nil
-    for _, u in ipairs(w.enemies or {}) do
-        if not foe or (u.hp or 1) < (foe.hp or 1) then foe = u end
+
+    if not bestSkill then
+        bestSkill = list[1]
+        bestTarget = enemies[1]
+        bestScore = 10
+        bestReason = "resonance default"
     end
-    local tid = (foe and foe.id) or (Fight and Fight.building) or uid
-    local targets, isAll
-    if support then
-        local who = hurt or (w.allies and w.allies[1])
-        targets = partyOf(best) and idsOf(w.allies) or { who and who.id or uid }
-        isAll = partyOf(best)
-    else
-        isAll = aoeOf(best) and #(w.enemies or {}) > 1
-        targets = isAll and idsOf(w.enemies) or { tid }
-    end
-    local name = foe and foe.name or "the field"
-    return emit(best, "resonance " .. name, targets, isAll, bestR)
+
+    local tid = (bestTarget and bestTarget.id) or (Fight and Fight.building) or uid
+    local targets = bestIsAll and idsOf(enemies) or { tid }
+    return emit(bestSkill, bestReason, targets, bestIsAll, bestScore)
 end
 
 local function finishList(uid)
@@ -5119,6 +5219,10 @@ local function resonanceWatch()
     local line = string.format("resonance %s by %s -> %s", bestChoice.name, who, bestChoice.reason)
     log("%s", line)
     appendLog("  " .. line)
+    if Hud and Hud.toast then
+        local cleanReason = bestChoice.reason:gsub("^resonance ", "")
+        Hud.toast(string.format("[RESONANCE] %s: %s (%s)", who, bestChoice.name, cleanReason))
+    end
     rememberCast(who, bestChoice.name)
     Fight.actions[#Fight.actions + 1] = line
     Fight.last = { who = who, skill = bestChoice.name }
