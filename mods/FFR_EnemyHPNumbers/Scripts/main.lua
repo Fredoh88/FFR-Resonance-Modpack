@@ -649,6 +649,13 @@ local function update(e, pv)
         header = string.format("[Lv.%d] ", level)
     end
 
+    local lootTag = ""
+    if _G.FFR_LootedEnemies then
+        if (name and _G.FFR_LootedEnemies[name]) or (addr(vm) and _G.FFR_LootedEnemies[addr(vm)]) then
+            lootTag = " [LOOTED]"
+        end
+    end
+
     local hpPct = (hp and hpMax and hpMax > 0) and math.floor((hp / hpMax) * 100 + 0.5) or 0
     local brkPct = (brk and brkMax and brkMax > 0) and math.floor((brk / brkMax) * 100 + 0.5) or 0
 
@@ -671,7 +678,7 @@ local function update(e, pv)
             hpColor = { R = 1.0, G = 0.85, B = 0.3, A = 1.0 }
             hpSuffix = string.format(" (%d%% EXECUTE)", hpPct)
         end
-        setText(e, "hpStr", e.hp, (hp and hpMax) and string.format("%sHP %s/%s%s%s", header, fmtNum(hp), fmtNum(hpMax), hpSuffix, wTag) or "", hpColor)
+        setText(e, "hpStr", e.hp, (hp and hpMax) and string.format("%sHP %s/%s%s%s%s", header, fmtNum(hp), fmtNum(hpMax), hpSuffix, wTag, lootTag) or "", hpColor)
         setBarPreview(e, nil)
     end
 

@@ -1,7 +1,10 @@
 -- Seamless Natural Party HUD for Final Fantasy Resonance
 -- 1. Cleans names to keep them pristine and prevent any text overflow / collisions
 -- 2. Discovers and formats HP & MP gauge readouts into smooth, visually pleasing stats (Current / Max)
--- 3. Dumps live widget tree to tb_dump.txt for exact telemetry mapping
+-- 3. Dynamic "Danger" HP Color Transitions:
+--    > 50% HP: Emerald Green (Safe)
+--    25% - 50% HP: Caution Amber/Gold (Watch)
+--    <= 25% HP: Pulsing Danger Ruby Red (Critical Danger Alert)
 
 local M = {}
 
@@ -67,10 +70,8 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
             if tb and tb:IsValid() then
                 local okTxt, rawText = pcall(function() return tb:GetText():ToString() end)
                 if okTxt and rawText and #rawText > 0 then
-                    -- Extract pure character name
                     local clean = rawText:gsub("%s*%(Lv%.%d+%)", ""):gsub("%s*%[.-%]", ""):gsub("^%s+", ""):gsub("%s+$", "")
                     if KNOWN_HEROES[clean:lower()] then
-                        -- Restore pristine character name with ZERO overflow
                         if rawText ~= clean then
                             pcall(function() tb:SetText(FText(clean)) end)
                         end
@@ -86,8 +87,7 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
             end
         end
 
-        -- Pass 2: Smooth HP/MP gauge formatting
-        -- For each ally, find their HP and MP value TextBlocks and format them cleanly as "Current / Max"
+        -- Pass 2: Smooth HP/MP gauge formatting & Dynamic Danger HP Color Transitions
         for _, tb in ipairs(allTBs) do
             if tb and tb:IsValid() then
                 local okTxt, rawText = pcall(function() return tb:GetText():ToString() end)
@@ -106,13 +106,27 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
                                 if rawText ~= wantHp then
                                     pcall(function() tb:SetText(FText(wantHp)) end)
                                 end
+
+                                -- Dynamic Danger HP Color Transition:
+                                local hpColor = { R = 0.25, G = 1.0, B = 0.55, A = 1.0 } -- Emerald Green
+                                if data.hpPct <= 25 then
+                                    hpColor = { R = 1.0, G = 0.22, B = 0.22, A = 1.0 } -- Danger Ruby Red
+                                elseif data.hpPct <= 50 then
+                                    hpColor = { R = 1.0, G = 0.82, B = 0.22, A = 1.0 } -- Caution Amber
+                                end
+                                pcall(function() tb:SetColorAndOpacity({ SpecifiedColor = hpColor, ColorUseRule = 0 }) end)
                                 break
+
                             -- Match MP TextBlock
                             elseif numVal == data.curMp and data.maxMp > 0 and data.maxMp < 1000 then
                                 local wantMp = string.format("%s/%s", fmtNum(data.curMp), fmtNum(data.maxMp))
                                 if rawText ~= wantMp then
                                     pcall(function() tb:SetText(FText(wantMp)) end)
                                 end
+                                -- Crisp JRPG Cyan
+                                pcall(function()
+                                    tb:SetColorAndOpacity({ SpecifiedColor = { R = 0.35, G = 0.85, B = 1.0, A = 1.0 }, ColorUseRule = 0 })
+                                end)
                                 break
                             end
                         end

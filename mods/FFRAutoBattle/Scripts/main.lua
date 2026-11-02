@@ -90,6 +90,25 @@ do
     else
         log("bestiary unavailable: %s", tostring(loaded))
     end
+    -- Load Persistent Bestiary Memory
+    local okMem, mem = pcall(dofile, DIR .. "/Scripts/bestiary_memory.lua")
+    if okMem and type(mem) == "table" then
+        for k, aff in pairs(mem) do
+            if Mobs[k] then
+                Mobs[k].weak = Mobs[k].weak or {}
+                if aff.weak then
+                    for el in pairs(aff.weak) do
+                        local found = false
+                        for _, w in ipairs(Mobs[k].weak) do if w == el then found = true; break end end
+                        if not found then Mobs[k].weak[#Mobs[k].weak + 1] = el end
+                    end
+                end
+            else
+                Mobs[k] = aff
+            end
+        end
+        log("persistent bestiary memory loaded")
+    end
 end
 local Health = {}
 do
@@ -2524,6 +2543,12 @@ local function turn(uid, skills, w, phase)
         end
         if hardField then
             autoProfileMode = "Boss Slayer"
+            if not Fight.adaptiveSpeedApplied then
+                Fight.adaptiveSpeedApplied = true
+                combatSpeedIdx = 1
+                pcall(function() ExecuteConsoleCommand("slomo 1.0") end)
+                showToast("[SPEED] Boss Encounter: 1.0x Cinematic Mode")
+            end
             if healers == 0 then return "defensive" end
             return "balanced"
         end
@@ -2541,6 +2566,11 @@ local function turn(uid, skills, w, phase)
             return "defensive"
         end
         autoProfileMode = "Speed Farm"
+        if not Fight.adaptiveSpeedApplied then
+            Fight.adaptiveSpeedApplied = true
+            combatSpeedIdx = 3
+            pcall(function() ExecuteConsoleCommand("slomo 2.0") end)
+        end
         if healers > 0 then return "aggressive" end
         return "balanced"
     end
@@ -3672,8 +3702,16 @@ local function turn(uid, skills, w, phase)
                     Fight.claim.steal[stealTarget.id] = true
                     Fight.stolenLoot = Fight.stolenLoot or {}
                     Fight.stolenLoot[#Fight.stolenLoot + 1] = stealTarget.name
+                    _G.FFR_LootedEnemies = _G.FFR_LootedEnemies or {}
+                    _G.FFR_LootedEnemies[stealTarget.id] = true
+                    if stealTarget.name then _G.FFR_LootedEnemies[stealTarget.name] = true end
                     return choice
                 end
+            end
+        else
+            if not Fight.allLootedTold and #(Fight.stolenLoot or {}) > 0 then
+                Fight.allLootedTold = true
+                if Hud and Hud.toast then Hud.toast("[LID] All drops secured! Shifting to Breaker debuffs.") end
             end
         end
 
@@ -3744,14 +3782,27 @@ local function turn(uid, skills, w, phase)
                         local t = (targets and targets[1]) or (#pool > 0 and pool[1]) or (#open > 0 and open[1]) or w.enemies[1]
                         if t then
                             local lbScore = 50000
-                            if spread and #w.enemies >= 2 then
-                                lbScore = lbScore + (#w.enemies * 15000)
-                            end
-                            if t.broken then lbScore = lbScore + 30000 end
-                            local f = elementFactor(s, t)
-                            if f >= 3 then lbScore = lbScore + 20000 end
-                            if lbScore > bestLbScore then
-                                bestLb, bestLbTarget, bestLbSpread, bestLbScore = s, t, spread, lbScore
+                            local breakPct = gaugeOfEnemy(t)
+                            local isNearBreak = (breakPct > 0 and breakPct <= 35)
+
+                            -- Stagger Burst Synchronization (2.0x Boss Shredder):
+                            -- If target is an elite/boss and break gauge is near breaking (<35%),
+                            -- hold single-target finisher Limit Bursts until the exact moment of Stagger,
+                            -- letting break-building attacks shatter them first!
+                            if not t.broken and isNearBreak and (hardField or #w.enemies <= 2) and not spread then
+                                lbScore = 0 -- Hold LB for 1 turn to guarantee 2.0x damage window!
+                            else
+                                if t.broken then
+                                    lbScore = lbScore + 120000 -- Massive priority spike: 2.0x bonus damage!
+                                end
+                                if spread and #w.enemies >= 2 then
+                                    lbScore = lbScore + (#w.enemies * 15000)
+                                end
+                                local f = elementFactor(s, t)
+                                if f >= 3 then lbScore = lbScore + 20000 end
+                                if lbScore > bestLbScore then
+                                    bestLb, bestLbTarget, bestLbSpread, bestLbScore = s, t, spread, lbScore
+                                end
                             end
                         end
                     end
@@ -4146,6 +4197,61 @@ local function finishBattle()
     end
     showBadge(nil)
     resetCombatSpeed()
+    Fight.adaptiveSpeedApplied = false
+    _G.FFR_LootedEnemies = {}
+
+    -- Save learned bestiary weaknesses persistently
+    pcall(function()
+        if Fight and Fight.learnedAffinity and next(Fight.learnedAffinity) then
+            local lines = { "-- Persistent Bestiary Memory for Final Fantasy Resonance", "return {" }
+            for k, aff in pairs(Fight.learnedAffinity) do
+                local parts = {}
+                if aff.weak and next(aff.weak) then
+                    local wList = {}
+                    for el in pairs(aff.weak) do wList[#wList + 1] = string.format("[%q]=true", el) end
+                    parts[#parts + 1] = "weak={" .. table.concat(wList, ",") .. "}"
+                end
+                if #parts > 0 then
+                    lines[#lines + 1] = string.format("  [%q] = { %s },", k, table.concat(parts, ", "))
+                end
+            end
+            lines[#lines + 1] = "}"
+            local f = io.open(DIR .. "/Scripts/bestiary_memory.lua", "w")
+            if f then
+                f:write(table.concat(lines, "\n"))
+                f:close()
+            end
+        end
+    end)
+
+    -- Outworld Auto-Camp & MP Low Reserves Alert
+    pcall(function()
+        local totalCurMp, totalMaxMp = 0, 0
+        local allies = friendIds()
+        for _, aid in ipairs(allies or {}) do
+            local cur = stat(aid, PARAM.MP, false) or 0
+            local max = stat(aid, PARAM.MP, true) or 1
+            totalCurMp = totalCurMp + cur
+            totalMaxMp = totalMaxMp + max
+        end
+        if totalMaxMp > 0 and (totalCurMp / totalMaxMp) < 0.30 then
+            local b = bag()
+            local healItem = nil
+            for _, it in ipairs(b or {}) do
+                local iname = (it.name or ""):lower()
+                if iname:find("tent") or iname:find("cottage") or iname:find("ether") then
+                    healItem = it
+                    break
+                end
+            end
+            if healItem and Hud and Hud.toast then
+                Hud.toast(string.format("[AUTO-RECOVERY] Party MP Low (<30%%) | Bag: %s (%d left)", healItem.name, healItem.count or 1))
+            elseif Hud and Hud.toast then
+                Hud.toast("[AUTO-RECOVERY] Party MP Low (<30%%) | Tip: Rest at campfire or save point!")
+            end
+        end
+    end)
+
     Fight.actions, Fight.casts, Fight.castOrder = {}, {}, {}
     Fight.broke, Fight.fell, Fight.prev, Fight.last = {}, {}, {}, nil
 end
