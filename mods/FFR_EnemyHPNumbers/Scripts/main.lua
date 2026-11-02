@@ -552,23 +552,41 @@ local function loadMobs()
     return MobsTable
 end
 
-local function enemyNameOf(e)
-    if e.unitName then return e.unitName end
+local function enemyInfoOf(e)
+    if e.unitName and e.unitLevel then return e.unitName, e.unitLevel end
     local vm = viewModel(e)
     local p = get(vm, "BtlUnitParam")
+    local name = e.unitName
+    local level = e.unitLevel
+
     if valid(p) then
-        local ok, n = pcall(function() return p:GetDuplicationUnitName():ToString() end)
-        if ok and type(n) == "string" and n ~= "" then
-            e.unitName = n
-            return n
+        if not name then
+            local ok, n = pcall(function() return p:GetDuplicationUnitName():ToString() end)
+            if ok and type(n) == "string" and n ~= "" then
+                name = n
+            else
+                local ok2, n2 = pcall(function() return p:GetUnitName():ToString() end)
+                if ok2 and type(n2) == "string" and n2 ~= "" then
+                    name = n2
+                end
+            end
+            e.unitName = name
         end
-        local ok2, n2 = pcall(function() return p:GetUnitName():ToString() end)
-        if ok2 and type(n2) == "string" and n2 ~= "" then
-            e.unitName = n2
-            return n2
+
+        if not level then
+            local okL, lvl = pcall(function() return p:GetLevel() end)
+            if okL and type(lvl) == "number" and lvl > 0 then
+                level = lvl
+            else
+                local okL2, lvl2 = pcall(function() return p.m_Level or p.Level end)
+                if okL2 and type(lvl2) == "number" and lvl2 > 0 then
+                    level = lvl2
+                end
+            end
+            e.unitLevel = level
         end
     end
-    return nil
+    return name, level
 end
 
 local ELEMENT_TAGS = {
@@ -620,8 +638,17 @@ local function update(e, pv)
     local p = pv[addr(vm)]
 
     local wTag = ""
-    local name = enemyNameOf(e)
+    local name, level = enemyInfoOf(e)
     if name then wTag = weaknessTag(name) end
+
+    local header = ""
+    if name and name ~= "" then
+        if level and level > 0 then
+            header = string.format("[Lv.%d] %s: ", level, name)
+        else
+            header = string.format("%s: ", name)
+        end
+    end
 
     local hpPct = (hp and hpMax and hpMax > 0) and math.floor((hp / hpMax) * 100 + 0.5) or 0
     local brkPct = (brk and brkMax and brkMax > 0) and math.floor((brk / brkMax) * 100 + 0.5) or 0
@@ -631,11 +658,11 @@ local function update(e, pv)
         local dmg = math.max(0, hp - p.hpAfter)
         local afterPct = (hpMax and hpMax > 0) and math.floor((p.hpAfter / hpMax) * 100 + 0.5) or 0
         if p.kill == "yes" then
-            setText(e, "hpStr", e.hp, string.format("HP %s " .. CONFIG.ARROW .. " 0 [LETHAL KILL! -%s]%s", fmtNum(hp), fmtNum(hp), wTag), CONFIG.COLOR_KILL)
+            setText(e, "hpStr", e.hp, string.format("%sHP %s " .. CONFIG.ARROW .. " 0 [LETHAL KILL! -%s]%s", header, fmtNum(hp), fmtNum(hp), wTag), CONFIG.COLOR_KILL)
         elseif p.kill == "maybe" then
-            setText(e, "hpStr", e.hp, string.format("HP %s " .. CONFIG.ARROW .. " ~%s (-%s | %d%%) [KILL?]%s", fmtNum(hp), fmtNum(p.hpAfter), fmtNum(dmg), afterPct, wTag), CONFIG.COLOR_KILL)
+            setText(e, "hpStr", e.hp, string.format("%sHP %s " .. CONFIG.ARROW .. " ~%s (-%s | %d%%) [KILL?]%s", header, fmtNum(hp), fmtNum(p.hpAfter), fmtNum(dmg), afterPct, wTag), CONFIG.COLOR_KILL)
         else
-            setText(e, "hpStr", e.hp, string.format("HP %s " .. CONFIG.ARROW .. " ~%s (-%s | %d%%)%s", fmtNum(hp), fmtNum(p.hpAfter), fmtNum(dmg), afterPct, wTag), CONFIG.COLOR_HP_PREV)
+            setText(e, "hpStr", e.hp, string.format("%sHP %s " .. CONFIG.ARROW .. " ~%s (-%s | %d%%)%s", header, fmtNum(hp), fmtNum(p.hpAfter), fmtNum(dmg), afterPct, wTag), CONFIG.COLOR_HP_PREV)
         end
         setBarPreview(e, (hpMax and hpMax > 0) and (p.hpAfter / hpMax) or nil)
     else
@@ -645,7 +672,7 @@ local function update(e, pv)
             hpColor = { R = 1.0, G = 0.85, B = 0.3, A = 1.0 }
             hpSuffix = string.format(" (%d%% EXECUTE!)", hpPct)
         end
-        setText(e, "hpStr", e.hp, (hp and hpMax) and string.format("HP %s/%s%s%s", fmtNum(hp), fmtNum(hpMax), hpSuffix, wTag) or "", hpColor)
+        setText(e, "hpStr", e.hp, (hp and hpMax) and string.format("%sHP %s/%s%s%s", header, fmtNum(hp), fmtNum(hpMax), hpSuffix, wTag) or "", hpColor)
         setBarPreview(e, nil)
     end
 

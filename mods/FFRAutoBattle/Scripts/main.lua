@@ -4944,10 +4944,48 @@ local function updatePartyCombatHud()
         if hpPct <= 0 then alert = " [FALLEN]"
         elseif hpPct <= 25 then alert = " [DANGER!]" end
 
-        lines[#lines + 1] = string.format(" %-9s: HP %5s/%-5s (%3d%%%s) | MP %3d/%-3d | %s",
-            name, fmtHudNum(curHp), fmtHudNum(maxHp), hpPct, alert, curMp, maxMp, lbStatus)
+        local p = paramOf(uid)
+        local lvl = nil
+        if p then
+            local okL, l = pcall(function() return p:GetLevel() end)
+            if okL and type(l) == "number" and l > 0 then lvl = l end
+        end
+        local lvlStr = lvl and string.format("(Lv.%2d)", lvl) or ""
+
+        lines[#lines + 1] = string.format(" %-8s %-7s: HP %5s/%-5s (%3d%%%s) | MP %3d/%-3d | %s",
+            name, lvlStr, fmtHudNum(curHp), fmtHudNum(maxHp), hpPct, alert, curMp, maxMp, lbStatus)
+    end
+
+    -- Live Enemy Threat Radar
+    local enemyList = members(REL.ENEMY)
+    if enemyList and #enemyList > 0 then
+        lines[#lines + 1] = "---------------- ENEMY THREAT RADAR ------------------"
+        for _, eid in ipairs(enemyList) do
+            local eName = unitName(eid)
+            local eCurHp = stat(eid, PARAM.HP, false) or 0
+            local eMaxHp = stat(eid, PARAM.HP, true) or 1
+            local eHpPct = math.floor((eCurHp / eMaxHp) * 100 + 0.5)
+
+            local p = paramOf(eid)
+            local eLvl = nil
+            if p then
+                local okL, l = pcall(function() return p:GetLevel() end)
+                if okL and type(l) == "number" and l > 0 then eLvl = l end
+            end
+            local eLvlStr = eLvl and string.format("[Lv.%2d] ", eLvl) or ""
+
+            local isStaggered = broken(eid)
+            local statusTag = isStaggered and "★ [STAGGERED! x2.0 DMG]" or ""
+            if not isStaggered and eHpPct <= 25 and eHpPct > 0 then
+                statusTag = "[EXECUTE!]"
+            end
+
+            lines[#lines + 1] = string.format(" %s%-16s: HP %5s/%-5s (%3d%%) %s",
+                eLvlStr, eName, fmtHudNum(eCurHp), fmtHudNum(eMaxHp), eHpPct, statusTag)
+        end
     end
     lines[#lines + 1] = "======================================================"
+
     local fullText = table.concat(lines, "\n")
     if fullText ~= lastAdvisorHudText then
         lastAdvisorHudText = fullText
