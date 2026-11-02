@@ -670,7 +670,7 @@ local function update(e, pv)
         local hpSuffix = string.format(" (%d%%)", hpPct)
         if hpPct <= 25 and hpPct > 0 then
             hpColor = { R = 1.0, G = 0.85, B = 0.3, A = 1.0 }
-            hpSuffix = string.format(" (%d%% EXECUTE!)", hpPct)
+            hpSuffix = string.format(" (%d%% EXECUTE)", hpPct)
         end
         setText(e, "hpStr", e.hp, (hp and hpMax) and string.format("%sHP %s/%s%s%s", header, fmtNum(hp), fmtNum(hpMax), hpSuffix, wTag) or "", hpColor)
         setBarPreview(e, nil)

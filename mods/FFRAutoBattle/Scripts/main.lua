@@ -145,6 +145,15 @@ do
         log("advisor unavailable: %s", tostring(loaded))
     end
 end
+local PartyHud = nil
+do
+    local ok, loaded = pcall(dofile, DIR .. "/Scripts/party_hud.lua")
+    if ok and type(loaded) == "table" then
+        PartyHud = loaded
+    else
+        log("party_hud unavailable: %s", tostring(loaded))
+    end
+end
 local Highlighter = nil
 do
     local ok, loaded = pcall(dofile, DIR .. "/Scripts/highlighter.lua")
@@ -5133,10 +5142,16 @@ local function updatePartyCombatHud()
         return
     end
 
-    if not advisorVisible then return end
-
     local allies = friendIds()
     if not allies or #allies == 0 then return end
+
+    -- Seamless Natural Party HUD Update:
+    -- Injects Level, Max HP, HP %, Max MP, and Alerts directly into the native bottom party frames!
+    if PartyHud and PartyHud.tick then
+        PartyHud.tick(allies, stat, paramOf, unitName, broken)
+    end
+
+    if not advisorVisible then return end
 
     local lines = {}
     lines[#lines + 1] = "================ PARTY TACTICAL INTEL ================"
@@ -5449,6 +5464,11 @@ pcall(function()
                 log("highlighter reloaded successfully!")
             else
                 log("highlighter reload failed: %s", tostring(loaded))
+            end
+            local okP, loadedP = pcall(dofile, DIR .. "/Scripts/party_hud.lua")
+            if okP and type(loadedP) == "table" then
+                PartyHud = loadedP
+                log("party_hud reloaded successfully!")
             end
         end)
     end)
