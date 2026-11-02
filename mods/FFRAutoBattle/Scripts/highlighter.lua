@@ -419,59 +419,145 @@ local function getItemData(rawItemBase, charName)
     local role = prof.role or ""
 
     if role == "Sentinel" then
-        -- Rain / Tank: Provoke, Cover, Mitigation, Heavy Armor, Shields, Counters, EHP
+        -- Rain / Tank: ALL Equipment Slots (Main Hand, Off-Hand, Headgear, Body Armor, Accessories, Visions, Masteries)
+        -- 1. Essential Passives & Command Arts
         if s:find("sentinel") or s:find("cover") or s:find("provoke") or s:find("taunt")
            or s:find("phalanx") or s:find("iron wall") or s:find("royal guard") or s:find("shield wall")
            or s:find("undying") or s:find("guts") or s:find("last stand") or s:find("draw attacks")
            or s:find("arms akimbo") or s:find("counter") or s:find("barrier") then
             return 5, "BiS: Sentinel"
-        elseif s:find("hp %+%d+") or s:find("def %+%d+") or s:find("guard") or s:find("defend")
-           or s:find("shield") or s:find("cuirass") or s:find("plate") or s:find("heavy") or s:find("armor")
-           or s:find("bunker") or s:find("bulwark") or s:find("mitigat") or s:find("tackle") or s:find("bangle") then
-            return 4, "Recommended: Tank"
-        elseif s:find("wilhelm") or s:find("cecil") or s:find("charlotte") or s:find("warrior of light") or s:find("golem") or s:find("titan") or s:find("alexander") then
+
+        -- 2. Heavy Headgear (Helmets, Great Helms)
+        elseif s:find("helm") or s:find("helmet") or s:find("grand helm") or s:find("genji helm")
+           or s:find("dragon helm") or s:find("iron helm") or s:find("mythril helm") or s:find("heavy helm") then
+            return 5, "BiS: Helm"
+
+        -- 3. Heavy Body Armor & Plate (Max EHP)
+        elseif s:find("cuirass") or s:find("maximilian") or s:find("genji armor") or s:find("crystal armor")
+           or s:find("force armor") or s:find("dragon mail") or s:find("demon mail") then
+            return 5, "BiS: Heavy Armor"
+        elseif s:find("plate") or s:find("mail") or s:find("heavy") or s:find("armor") then
+            return 4, "Recommended: Armor"
+
+        -- 4. Tank Shields (Off-Hand)
+        elseif s:find("aegis shield") or s:find("genji shield") or s:find("force shield") then
+            return 5, "BiS: Shield"
+        elseif s:find("shield") or s:find("buckler") or s:find("escutcheon") then
+            return 4, "Recommended: Shield"
+
+        -- 5. Tank Accessories (DEF, HP, Mitigation)
+        elseif s:find("titan's bangle") or s:find("bulletproof vest") or s:find("safety bit") or s:find("protect ring") then
+            return 5, "BiS: Tank Acc"
+        elseif s:find("bangle") or s:find("muscle belt") or s:find("barrier ring") or s:find("earring") or s:find("hp %+%d+") or s:find("def %+%d+") then
+            return 4, "Recommended: Tank Acc"
+
+        -- 6. Tank Visions & Espers
+        elseif s:find("wilhelm") or s:find("cecil") or s:find("charlotte") or s:find("warrior of light")
+           or s:find("golem") or s:find("titan") or s:find("alexander") or s:find("basch") or s:find("snow") then
             return 5, "BiS: Tank Vision"
-        elseif s:find("greatsword") or s:find("broadsword") or s:find("saber") or s:find("fire") or s:find("sword") or s:find("blade") then
-            return 3, "Upgrade: Weapon"
+
+        -- 7. Weapons (Greatswords, Sabers, Heavy Blades)
+        elseif s:find("flametongue") or s:find("excalibur") or s:find("ragnarok") or s:find("ultima weapon") or s:find("save the queen") then
+            return 5, "BiS: Greatsword"
+        elseif s:find("greatsword") or s:find("broadsword") or s:find("saber") or s:find("sword") or s:find("blade") then
+            return 4, "Recommended: Blade"
         end
 
     elseif role == "Breaker" then
-        -- Lasswell / Physical DPS: Katanas, Crit, Stagger, Speed, Break
+        -- Lasswell / Physical DPS: ALL Equipment Slots
+        -- 1. Passives & Signature Skills
         if s:find("null moon") or s:find("dawn frost") or s:find("blade mastery") or s:find("katana mastery")
            or s:find("crit rate") or s:find("scan & strike") or s:find("rearguard") or s:find("cloud soul")
            or s:find("stagger surge") or s:find("dual%-wield") or s:find("chirijiraden") or s:find("masamune") or s:find("murasame") then
             return 5, "BiS: Breaker"
-        elseif s:find("crit") or s:find("katana") or s:find("blade") or s:find("stagger") or s:find("ice")
-           or s:find("frost") or s:find("atk %+%d+") or s:find("speed %+%d+") or s:find("barrage")
-           or s:find("cross") or s:find("slash") or s:find("pierce") or s:find("shinobi") or s:find("wrist") then
-            return 4, "Recommended: DPS"
-        elseif s:find("cloud") or s:find("sephiroth") or s:find("tidus") or s:find("noctis") then
+
+        -- 2. DPS Headgear (Masks, Cowls, Headbands)
+        elseif s:find("tiger mask") or s:find("black cowl") or s:find("shinobi headband") or s:find("ninja cap") or s:find("mask") or s:find("cowl") or s:find("bandana") then
+            return 5, "BiS: Mask"
+
+        -- 3. Light Armor & Ninja Gear
+        elseif s:find("shinobi gear") or s:find("ninja garb") or s:find("black gi") then
+            return 5, "BiS: Light Armor"
+        elseif s:find("gi") or s:find("garb") or s:find("kenpogi") or s:find("leather armor") then
+            return 4, "Recommended: Armor"
+
+        -- 4. Katanas & Blades
+        elseif s:find("icebrand") or s:find("muramasa") or s:find("shiden") or s:find("zanmato") then
+            return 5, "BiS: Katana"
+        elseif s:find("katana") or s:find("blade") or s:find("cross") or s:find("slash") then
+            return 4, "Recommended: Katana"
+
+        -- 5. Crit & ATK Accessories
+        elseif s:find("hyper wrist") or s:find("hero's ring") or s:find("critical ring") or s:find("hermes sandals") then
+            return 5, "BiS: Crit Acc"
+        elseif s:find("wrist") or s:find("belt") or s:find("atk %+%d+") or s:find("speed %+%d+") then
+            return 4, "Recommended: DPS Acc"
+
+        -- 6. Visions
+        elseif s:find("cloud") or s:find("sephiroth") or s:find("tidus") or s:find("noctis") or s:find("squall") then
             return 5, "BiS: DPS Vision"
         end
 
     elseif role == "Luminary" then
-        -- Fina / Healers: Full Party Heals, Revives, SPR, Regen
+        -- Fina / Healers: ALL Equipment Slots
+        -- 1. Passives & Signature Heals
         if s:find("curaja") or s:find("curaga") or s:find("arise") or s:find("dualcast")
            or s:find("white magic mastery") or s:find("lb triple charge") or s:find("auto%-regen")
            or s:find("spr %+%d+") or s:find("spirit %+%d+") or s:find("nirvana") or s:find("holy wand") then
             return 5, "BiS: Luminary"
-        elseif s:find("cura") or s:find("cure") or s:find("heal") or s:find("raise") or s:find("revive")
-           or s:find("regen") or s:find("cleanse") or s:find("esuna") or s:find("staff") or s:find("robe")
-           or s:find("rosary") or s:find("cheer") then
-            return 4, "Recommended: Healer"
-        elseif s:find("leah") or s:find("ayaka") or s:find("folka") or s:find("aerith") then
+
+        -- 2. Healer Headgear (Circlets, Hairpins, Brims, Crowns)
+        elseif s:find("circlet") or s:find("hairpin") or s:find("white brim") or s:find("crown") or s:find("tiara") or s:find("priest's hat") or s:find("sage's hat") then
+            return 5, "BiS: Circlet"
+
+        -- 3. Robes & Gowns
+        elseif s:find("robe of lords") or s:find("white robe") or s:find("sage's robe") then
+            return 5, "BiS: White Robe"
+        elseif s:find("robe") or s:find("gown") or s:find("vestment") then
+            return 4, "Recommended: Robe"
+
+        -- 4. Staves & Wands
+        elseif s:find("staff of healing") or s:find("staff") or s:find("wand") or s:find("cane") then
+            return 4, "Recommended: Staff"
+
+        -- 5. SPR & Status Accessories
+        elseif s:find("ribbon") or s:find("rosary") or s:find("angel ring") or s:find("soul ring") then
+            return 5, "BiS: Healer Acc"
+        elseif s:find("ring") or s:find("pendant") or s:find("amulet") then
+            return 4, "Recommended: Acc"
+
+        -- 6. Visions
+        elseif s:find("ayaka") or s:find("folka") or s:find("aerith") or s:find("garnet") or s:find("lenna") then
             return 5, "BiS: Healer Vision"
         end
 
     elseif role == "Mechanist" then
-        -- Lid: Armor Break, Mental Break, Machine, Stagger, Speed
+        -- Lid: ALL Equipment Slots
+        -- 1. Passives & Debuffs
         if s:find("break mastery") or s:find("armor break") or s:find("mental break") or s:find("weapon break")
            or s:find("t%.r%.n%.d") or s:find("march of the machines") or s:find("speed %+%d+") or s:find("thief") then
             return 5, "BiS: Mechanist"
-        elseif s:find("break") or s:find("wrench") or s:find("hammer") or s:find("machine") or s:find("shred")
-           or s:find("thunder") or s:find("stagger") then
-            return 4, "Recommended: Debuff"
-        elseif s:find("cid") or s:find("rikku") or s:find("edgar") then
+
+        -- 2. Headgear (Goggles, Visors, Safety Caps)
+        elseif s:find("goggles") or s:find("visor") or s:find("safety hat") or s:find("mechanic cap") or s:find("miner's cap") then
+            return 5, "BiS: Goggles"
+
+        -- 3. Machinist Armor & Vests
+        elseif s:find("machinist's jacket") or s:find("engineer's suit") then
+            return 5, "BiS: Tech Armor"
+        elseif s:find("jacket") or s:find("vest") or s:find("suit") or s:find("overalls") then
+            return 4, "Recommended: Armor"
+
+        -- 4. Wrenches & Hammers
+        elseif s:find("thor's hammer") or s:find("heavy wrench") or s:find("wrench") or s:find("hammer") then
+            return 5, "BiS: Tool"
+
+        -- 5. Speed & Steal Accessories
+        elseif s:find("thief's bracer") or s:find("hermes boots") or s:find("speed belt") then
+            return 5, "BiS: Steal/Speed"
+
+        -- 6. Visions
+        elseif s:find("edgar") or s:find("cid") or s:find("rikku") or s:find("prompto") then
             return 5, "BiS: Tech Vision"
         end
 
