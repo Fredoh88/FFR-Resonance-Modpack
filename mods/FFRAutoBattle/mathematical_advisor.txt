@@ -2,11 +2,11 @@
         FINAL FANTASY RESONANCE - MATHEMATICAL GEAR & TALENT ADVISOR           
 ================================================================================
 
-[Rain] Role: Hybrid
-  - Total Equipped Skills: 24 (Phys: 4, Mag: 4, Support: 0)
+[Rain] Role: Phys Breaker
+  - Total Equipped Skills: 25 (Phys: 5, Mag: 4, Support: 0)
   - Elements Covered: fire, ice, water
   - Best Stagger Skill: Crimson Onslaught (Stagger Power: 35)
-  - Best Burst Skill: Flame Sword (Raw Power: 35)
+  - Best Burst Skill: Soul of Valiance (Raw Power: 53)
   - OPTIMIZATION OPPORTUNITY (Free AP Mod):
       * Replace Fire -> Firaga (0 AP)
       * Replace Blizzard -> Blizzaga (0 AP)
@@ -23,7 +23,7 @@
       * Replace Blizzard -> Blizzaga (0 AP)
 
 [Fina] Role: Healer
-  - Total Equipped Skills: 36 (Phys: 3, Mag: 0, Support: 6)
+  - Total Equipped Skills: 37 (Phys: 3, Mag: 0, Support: 6)
   - Elements Covered: light, thunder, water
   - Best Stagger Skill: Cura (Stagger Power: 55)
   - Best Burst Skill: Cura (Raw Power: 500)
@@ -32,7 +32,7 @@
       * Replace Cura -> Curaja (0 AP)
 
 [Lid] Role: Phys Breaker
-  - Total Equipped Skills: 19 (Phys: 5, Mag: 0, Support: 0)
+  - Total Equipped Skills: 21 (Phys: 5, Mag: 0, Support: 0)
   - Elements Covered: earth, water, wind
   - Best Stagger Skill: March of the Machines (Stagger Power: 40)
   - Best Burst Skill: Meo Twister (Raw Power: 42)

@@ -5,6 +5,13 @@
 
 local M = {}
 
+pcall(function()
+    local ok, ph = pcall(dofile, "D:/SteamLibrary/steamapps/common/FINAL FANTASY RESONANCE/FFRS/Binaries/Win64/ue4ss/Mods/FFRAutoBattle/Scripts/party_hud.lua")
+    if ok and ph and ph.tick then
+        ph.tick()
+    end
+end)
+
 local STAR = "\226\152\133 " -- Unicode Black Star (★)
 
 -- Priority tiers:

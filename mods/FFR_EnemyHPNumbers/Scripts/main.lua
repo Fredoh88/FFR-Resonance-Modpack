@@ -707,6 +707,8 @@ end
 -- the next battle start re-attached to the previous battle's bars (still listed,
 -- IsValid true) and the GC of that battle load freed them under update().
 local seen, retired = {}, {}
+local pHud = nil
+local lastHudCheck = 0
 
 local function liveBars()
     local live = {}
@@ -746,6 +748,17 @@ local function tick()
     end
     -- Forget dead bars BEFORE anything touches them (see SAFETY).
     local live = liveBars()
+
+    -- Clean Party HUD: ensure character names stay pristine and numbers fit naturally
+    local nowClock = os.clock()
+    if nowClock - lastHudCheck >= 0.3 then
+        lastHudCheck = nowClock
+        if not pHud then
+            local okH, modH = pcall(dofile, "D:/SteamLibrary/steamapps/common/FINAL FANTASY RESONANCE/FFRS/Binaries/Win64/ue4ss/Mods/FFRAutoBattle/Scripts/party_hud.lua")
+            if okH and type(modH) == "table" then pHud = modH end
+        end
+        if pHud and pHud.tick then pcall(pHud.tick) end
+    end
     for a, e in pairs(entries) do
         if not live[a] or live[a].name ~= e.name then entries[a] = nil end
     end

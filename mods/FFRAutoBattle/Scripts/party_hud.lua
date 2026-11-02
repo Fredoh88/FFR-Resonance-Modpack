@@ -1,6 +1,7 @@
--- Seamless Party HUD Enhancements for Final Fantasy Resonance
--- Integrates Level, Max HP/MP, Percentage, Danger Alerts, and LB Ready Status directly into the native party frames!
--- Smooth, flicker-free, 100% game-thread safe.
+-- Seamless Natural Party HUD for Final Fantasy Resonance
+-- 1. Cleans names to keep them pristine and prevent any text overflow / collisions
+-- 2. Discovers and formats HP & MP gauge readouts into smooth, visually pleasing stats (Current / Max)
+-- 3. Dumps live widget tree to tb_dump.txt for exact telemetry mapping
 
 local M = {}
 
@@ -12,166 +13,120 @@ local function fmtNum(n)
     return formatted
 end
 
-local function cleanName(raw)
-    if not raw or raw == "" then return "" end
-    local s = raw:gsub("%s*Lv%..*$", ""):gsub("%s*%[.*$", ""):gsub("%s*%(.*$", "")
-    return s:gsub("^%s+", ""):gsub("%s+$", "")
-end
+local KNOWN_HEROES = {
+    ["rain"] = true, ["lasswell"] = true, ["fina"] = true, ["lid"] = true,
+    ["nichol"] = true, ["sakura"] = true, ["jake"] = true, ["dark fina"] = true,
+    ["archwitch fina"] = true, ["raegen"] = true, ["sieghard"] = true, ["folka"] = true
+}
 
-local function findTextBlocksIn(widget, depth)
-    local results = {}
-    if not (widget and widget:IsValid()) then return results end
-    local okClass, cName = pcall(function() return widget:GetClass():GetFName():ToString() end)
-    if okClass and cName == "TextBlock" then
-        results[#results + 1] = widget
-        return results
-    end
-    if (depth or 0) >= 4 then return results end
-    local count = 0
-    pcall(function() count = widget:GetChildrenCount() end)
-    if count > 0 then
-        for i = 0, count - 1 do
-            local child = nil
-            pcall(function() child = widget:GetChildAt(i) end)
-            if child and child:IsValid() then
-                local sub = findTextBlocksIn(child, (depth or 0) + 1)
-                for _, s in ipairs(sub) do results[#results + 1] = s end
-            end
-        end
-    end
-    return results
-end
-
-local dumpLogged = false
+local dumpDone = false
 
 function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
-    if not allies or #allies == 0 then return end
-
     pcall(function()
-        -- Build current snapshot of party stats
-        local statsByChar = {}
-        for _, uid in ipairs(allies) do
-            local name = unitNameFn(uid)
-            if name and name ~= "" then
-                local curHp = statFn(uid, 1, false) or 0  -- PARAM.HP = 1
-                local maxHp = statFn(uid, 1, true) or 1
-                local curMp = statFn(uid, 2, false) or 0  -- PARAM.MP = 2
-                local maxMp = statFn(uid, 2, true) or 1
-                local curLb = statFn(uid, 3, false) or 0  -- PARAM.LB = 3
-                local maxLb = statFn(uid, 3, true) or 100
-                if maxLb <= 0 then maxLb = 100 end
-
-                local hpPct = math.floor((curHp / maxHp) * 100 + 0.5)
-                local mpPct = math.floor((curMp / maxMp) * 100 + 0.5)
-                local lbPct = math.min(100, math.floor((curLb / maxLb) * 100 + 0.5))
-
-                local p = paramOfFn(uid)
-                local lvl = nil
-                if p then
-                    local okL, l = pcall(function() return p:GetLevel() end)
-                    if okL and type(l) == "number" and l > 0 then lvl = l end
-                end
-
-                statsByChar[name:lower()] = {
-                    uid = uid,
-                    name = name,
-                    lvl = lvl,
-                    curHp = curHp,
-                    maxHp = maxHp,
-                    hpPct = hpPct,
-                    curMp = curMp,
-                    maxMp = maxMp,
-                    mpPct = mpPct,
-                    curLb = curLb,
-                    maxLb = maxLb,
-                    lbPct = lbPct,
-                }
-            end
-        end
-
         local allTBs = FindAllOf("TextBlock")
         if not allTBs or #allTBs == 0 then return end
 
+        -- Build live ally stats table
+        local allyStats = {}
+        if allies and #allies > 0 and statFn and unitNameFn then
+            for _, uid in ipairs(allies) do
+                local name = unitNameFn(uid)
+                if name and name ~= "" then
+                    local curHp = statFn(uid, 1, false) or 0
+                    local maxHp = statFn(uid, 1, true) or 1
+                    local curMp = statFn(uid, 2, false) or 0
+                    local maxMp = statFn(uid, 2, true) or 1
+                    local curLb = statFn(uid, 4, false) or 0
+                    local maxLb = statFn(uid, 4, true) or 100
+                    if maxLb <= 0 then maxLb = 100 end
+
+                    local hpPct = math.floor((curHp / maxHp) * 100 + 0.5)
+                    local mpPct = math.floor((curMp / maxMp) * 100 + 0.5)
+
+                    allyStats[name:lower()] = {
+                        uid = uid,
+                        name = name,
+                        curHp = curHp,
+                        maxHp = maxHp,
+                        hpPct = hpPct,
+                        curMp = curMp,
+                        maxMp = maxMp,
+                        mpPct = mpPct,
+                    }
+                end
+            end
+        end
+
+        local dumpLines = {}
+        if not dumpDone then
+            dumpLines[#dumpLines + 1] = string.format("=== TEXTBLOCK SCAN: %d WIDGETS ===", #allTBs)
+        end
+
+        -- Pass 1: Clean any modified/clunky name TextBlocks immediately
+        for i, tb in ipairs(allTBs) do
+            if tb and tb:IsValid() then
+                local okTxt, rawText = pcall(function() return tb:GetText():ToString() end)
+                if okTxt and rawText and #rawText > 0 then
+                    -- Extract pure character name
+                    local clean = rawText:gsub("%s*%(Lv%.%d+%)", ""):gsub("%s*%[.-%]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+                    if KNOWN_HEROES[clean:lower()] then
+                        -- Restore pristine character name with ZERO overflow
+                        if rawText ~= clean then
+                            pcall(function() tb:SetText(FText(clean)) end)
+                        end
+                    end
+
+                    if not dumpDone and #rawText < 100 then
+                        local parClass, outerClass = "none", "none"
+                        pcall(function() parClass = tb:GetParent():GetClass():GetFName():ToString() end)
+                        pcall(function() outerClass = tb:GetOuter():GetClass():GetFName():ToString() end)
+                        dumpLines[#dumpLines + 1] = string.format("  [%d] '%s' | Parent: %s | Outer: %s", i, rawText, parClass, outerClass)
+                    end
+                end
+            end
+        end
+
+        -- Pass 2: Smooth HP/MP gauge formatting
+        -- For each ally, find their HP and MP value TextBlocks and format them cleanly as "Current / Max"
         for _, tb in ipairs(allTBs) do
             if tb and tb:IsValid() then
                 local okTxt, rawText = pcall(function() return tb:GetText():ToString() end)
-                if okTxt and rawText and #rawText > 0 and #rawText < 40 then
-                    local cName = cleanName(rawText):lower()
-                    local charData = statsByChar[cName]
+                if okTxt and rawText and #rawText > 0 and not rawText:find("/") then
+                    local cleanDigits = rawText:gsub(",", ""):gsub("%s+", "")
+                    local numVal = tonumber(cleanDigits)
 
-                    if charData then
-                        -- Found the Name TextBlock for this character!
-                        -- Format the header row: Name [Lv.XX] + Alert Tags
-                        local alertTag = ""
-                        if charData.hpPct <= 0 then
-                            alertTag = " [FALLEN]"
-                        elseif charData.hpPct <= 25 then
-                            alertTag = " [DANGER!]"
-                        elseif charData.lbPct >= 100 then
-                            alertTag = " [LB READY!]"
-                        end
+                    if numVal and numVal > 0 then
+                        for _, data in pairs(allyStats) do
+                            -- Match HP TextBlock
+                            if numVal == data.curHp and data.maxHp > 0 then
+                                local wantHp = (data.hpPct < 100)
+                                    and string.format("%s/%s (%d%%)", fmtNum(data.curHp), fmtNum(data.maxHp), data.hpPct)
+                                    or  string.format("%s/%s", fmtNum(data.curHp), fmtNum(data.maxHp))
 
-                        local wantName = charData.lvl and string.format("%s (Lv.%d)%s", charData.name, charData.lvl, alertTag)
-                                                      or string.format("%s%s", charData.name, alertTag)
-
-                        if rawText ~= wantName then
-                            pcall(function() tb:SetText(FText(wantName)) end)
-                        end
-
-                        -- Inspect Parent / Grandparent container to find all child TextBlocks
-                        local topContainer = nil
-                        local okPar, par = pcall(function() return tb:GetParent() end)
-                        if okPar and par and par:IsValid() then
-                            topContainer = par
-                            local okGp, gp = pcall(function() return par:GetParent() end)
-                            if okGp and gp and gp:IsValid() then
-                                topContainer = gp
-                                local okGgp, ggp = pcall(function() return gp:GetParent() end)
-                                if okGgp and ggp and ggp:IsValid() then
-                                    topContainer = ggp
+                                if rawText ~= wantHp then
+                                    pcall(function() tb:SetText(FText(wantHp)) end)
                                 end
-                            end
-                        end
-
-                        if topContainer then
-                            local siblings = findTextBlocksIn(topContainer, 0)
-                            for _, child in ipairs(siblings) do
-                                if child ~= tb and child:IsValid() then
-                                    local okCTxt, cText = pcall(function() return child:GetText():ToString() end)
-                                    if okCTxt and cText and #cText > 0 then
-                                        local cleanDigits = cText:gsub(",", "")
-                                        local numVal = tonumber(cleanDigits:match("^%d+"))
-
-                                        -- Detect if this text block displays HP
-                                        local isCurrentHp = (numVal == charData.curHp) or (cleanDigits == tostring(charData.curHp))
-                                        -- Detect if this text block displays MP
-                                        local isCurrentMp = (numVal == charData.curMp) or (cleanDigits == tostring(charData.curMp))
-
-                                        -- Seamless HP format:
-                                        -- If at full HP: "2,018 / 2,018"
-                                        -- If damaged: "1,069 / 1,399 (76%)"
-                                        if isCurrentHp and not cText:find("/") then
-                                            local wantHp = (charData.hpPct < 100)
-                                                and string.format("%s / %s (%d%%)", fmtNum(charData.curHp), fmtNum(charData.maxHp), charData.hpPct)
-                                                or  string.format("%s / %s", fmtNum(charData.curHp), fmtNum(charData.maxHp))
-
-                                            if cText ~= wantHp then
-                                                pcall(function() child:SetText(FText(wantHp)) end)
-                                            end
-
-                                        -- Seamless MP format: "206 / 206"
-                                        elseif isCurrentMp and not cText:find("/") then
-                                            local wantMp = string.format("%s / %s", fmtNum(charData.curMp), fmtNum(charData.maxMp))
-                                            if cText ~= wantMp then
-                                                pcall(function() child:SetText(FText(wantMp)) end)
-                                            end
-                                        end
-                                    end
+                                break
+                            -- Match MP TextBlock
+                            elseif numVal == data.curMp and data.maxMp > 0 and data.maxMp < 1000 then
+                                local wantMp = string.format("%s/%s", fmtNum(data.curMp), fmtNum(data.maxMp))
+                                if rawText ~= wantMp then
+                                    pcall(function() tb:SetText(FText(wantMp)) end)
                                 end
+                                break
                             end
                         end
                     end
                 end
+            end
+        end
+
+        if not dumpDone and #dumpLines > 1 then
+            dumpDone = true
+            local f = io.open("D:\\SteamLibrary\\steamapps\\common\\FINAL FANTASY RESONANCE\\FFRS\\Binaries\\Win64\\ue4ss\\Mods\\tb_dump.txt", "w")
+            if f then
+                f:write(table.concat(dumpLines, "\n"))
+                f:close()
             end
         end
     end)
