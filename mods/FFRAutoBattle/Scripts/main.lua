@@ -4805,14 +4805,34 @@ Hud.toast = function(msg)
     end)
 end
 
-Hud.badgeShow = function(msg)
+Hud.badgeSerial = 0
+Hud.lastBadgeMsg = ""
+
+Hud.badgeShow = function(msg, duration)
     if Hud.disabled then return end
     ExecuteInGameThread(function()
         local ok, err = pcall(function()
             local w = widget("badge")
-            if not msg then w.widget:SetVisibility(1) return end
-            w.text:SetText(FText(msg))
-            w.widget:SetVisibility(3)
+            if not msg or msg == "" then
+                Hud.lastBadgeMsg = ""
+                if w and w.widget:IsValid() then w.widget:SetVisibility(1) end
+                return
+            end
+
+            -- Only trigger display & auto-fade timer on initial engagement or status change
+            if msg ~= Hud.lastBadgeMsg then
+                Hud.lastBadgeMsg = msg
+                w.text:SetText(FText(msg))
+                w.widget:SetVisibility(3)
+                Hud.badgeSerial = (Hud.badgeSerial or 0) + 1
+                local serial = Hud.badgeSerial
+                -- Auto-fades after 3.5 seconds so player knows how it engages, then fades away!
+                gameDelay(math.floor((duration or 3.5) * 1000), function()
+                    if serial == Hud.badgeSerial and w and w.widget:IsValid() then
+                        w.widget:SetVisibility(1)
+                    end
+                end)
+            end
         end)
         if not ok then
             Hud.disabled = true
@@ -4979,7 +4999,7 @@ local function toggleBuildGuide()
     end
 end
 
-local advisorVisible = true
+local advisorVisible = false
 local lastAdvisorHudText = ""
 
 Hud.advisorShow = function(msg)
