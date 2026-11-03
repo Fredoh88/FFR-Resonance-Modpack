@@ -22,7 +22,6 @@ local KNOWN_HEROES = {
     ["archwitch fina"] = true, ["raegen"] = true, ["sieghard"] = true, ["folka"] = true
 }
 
-local dumpDone = false
 
 function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
     pcall(function()
@@ -60,11 +59,6 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
             end
         end
 
-        local dumpLines = {}
-        if not dumpDone then
-            dumpLines[#dumpLines + 1] = string.format("=== TEXTBLOCK SCAN: %d WIDGETS ===", #allTBs)
-        end
-
         -- Pass 1: Clean any modified/clunky name TextBlocks immediately
         for i, tb in ipairs(allTBs) do
             if tb and tb:IsValid() then
@@ -75,13 +69,6 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
                         if rawText ~= clean then
                             pcall(function() tb:SetText(FText(clean)) end)
                         end
-                    end
-
-                    if not dumpDone and #rawText < 100 then
-                        local parClass, outerClass = "none", "none"
-                        pcall(function() parClass = tb:GetParent():GetClass():GetFName():ToString() end)
-                        pcall(function() outerClass = tb:GetOuter():GetClass():GetFName():ToString() end)
-                        dumpLines[#dumpLines + 1] = string.format("  [%d] '%s' | Parent: %s | Outer: %s", i, rawText, parClass, outerClass)
                     end
                 end
             end
@@ -135,14 +122,7 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
             end
         end
 
-        if not dumpDone and #dumpLines > 1 then
-            dumpDone = true
-            local f = io.open("D:\\SteamLibrary\\steamapps\\common\\FINAL FANTASY RESONANCE\\FFRS\\Binaries\\Win64\\ue4ss\\Mods\\tb_dump.txt", "w")
-            if f then
-                f:write(table.concat(dumpLines, "\n"))
-                f:close()
-            end
-        end
+
     end)
 end
 

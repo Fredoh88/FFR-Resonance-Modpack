@@ -696,6 +696,27 @@ local function evaluateRecommendation(baseItem, activeChar, isEquipped, equipped
     end
 end
 
+-- Number of accessory slots a hero has (Equip 4 Accessories mod = 4, vanilla = 2).
+local ACC_SLOTS = 4
+
+-- Is this item an accessory? Decided by name keywords or by a known accessory badge tag.
+local ACC_WORDS = {
+    "ring", "bangle", "belt", "earring", "ribbon", "rosary", "pendant", "amulet",
+    "bracer", "boots", "sandals", "wrist", "vest", "safety bit", "glasses", "charm",
+    "talisman", "brooch", "choker", "anklet", "gauntlet",
+}
+local function isAccessoryItem(base, tag)
+    if tag and (tag:find("Acc") or tag:find("Auto%-Protect") or tag:find("Death Immune")
+        or tag:find("Tank DEF") or tag:find("Tank HP") or tag:find("Steal/Speed")) then
+        return true
+    end
+    local b = normalizeItemName(base):lower()
+    for _, w in ipairs(ACC_WORDS) do
+        if b:find(w, 1, true) then return true end
+    end
+    return false
+end
+
 local lastScanTime = 0
 
 function M.tick()
@@ -744,27 +765,74 @@ function M.tick()
 
         local activeChar = detectActiveCharacter(allTBs)
 
+        -- Pass 1: classify every row. Accessories are ranked together so that only the
+        -- best ACC_SLOTS items are badged (equipped ones count toward the slot total).
+        local rows = {}
+        local equippedAccScores = {}
+        local seenEquipped = {}
+        local candidates = {}
+        local seenCand = {}
+
         for _, tb in ipairs(allTBs) do
             if tb and tb:IsValid() then
                 local str = textOf(tb)
                 if str and str ~= "" and #str < 75 then
                     local rawItem = clean(str)
                     local base = rawItem:lower():gsub("^%s+", ""):gsub("%s+$", "")
-                    
                     local hasTag = (str:find("★") or str:find("▲") or str:lower():find("%[bis") or str:lower():find("%[recommended") or str:lower():find("%[choose this")) ~= nil
                     local isEquipped, equippedOwner = getRowEquippedInfo(tb, activeChar)
+                    local score, tag = getItemData(base, activeChar)
+                    local row = { tb = tb, str = str, rawItem = rawItem, base = base, hasTag = hasTag,
+                                  isEquipped = isEquipped, owner = equippedOwner, score = score, tag = tag }
+                    row.isAcc = (score >= 3 and tag and isAccessoryItem(base, tag)) or false
+                    row.rec = evaluateRecommendation(base, activeChar, isEquipped, equippedOwner)
+                    rows[#rows + 1] = row
 
-                    local recString = evaluateRecommendation(base, activeChar, isEquipped, equippedOwner)
-
-                    if recString then
-                        local want = rawItem .. " " .. recString
-                        if str ~= want then
-                            pcall(function() tb:SetText(FText(want)) end)
+                    if row.isAcc then
+                        if isEquipped and equippedOwner == activeChar then
+                            if not seenEquipped[base] then
+                                seenEquipped[base] = true
+                                equippedAccScores[#equippedAccScores + 1] = score
+                            end
+                        elseif row.rec and not seenCand[base] then
+                            seenCand[base] = true
+                            candidates[#candidates + 1] = row
                         end
-                    elseif hasTag then
-                        pcall(function() tb:SetText(FText(rawItem)) end)
                     end
                 end
+            end
+        end
+
+        -- Pass 2: decide which accessory rows keep their badge.
+        table.sort(candidates, function(a, b) return a.score > b.score end)
+        local free = ACC_SLOTS - #equippedAccScores
+        local floorScore = 0
+        if free <= 0 and #equippedAccScores > 0 then
+            floorScore = math.huge
+            for _, sc in ipairs(equippedAccScores) do if sc < floorScore then floorScore = sc end end
+        end
+        local allowed = {}
+        local taken = 0
+        for _, c in ipairs(candidates) do
+            if free > 0 then
+                if taken < free then allowed[c.base] = true; taken = taken + 1 end
+            elseif c.score > floorScore and taken < ACC_SLOTS then
+                -- all slots are full: only suggest a swap if it beats the weakest equipped one
+                allowed[c.base] = true; taken = taken + 1
+            end
+        end
+
+        -- Pass 3: write the text.
+        for _, row in ipairs(rows) do
+            local rec = row.rec
+            if row.isAcc and rec and not allowed[row.base] then rec = nil end
+            if rec then
+                local want = row.rawItem .. " " .. rec
+                if row.str ~= want then
+                    pcall(function() row.tb:SetText(FText(want)) end)
+                end
+            elseif row.hasTag then
+                pcall(function() row.tb:SetText(FText(row.rawItem)) end)
             end
         end
     end)
