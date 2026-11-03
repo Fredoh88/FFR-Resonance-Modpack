@@ -22,7 +22,6 @@ local KNOWN_HEROES = {
     ["archwitch fina"] = true, ["raegen"] = true, ["sieghard"] = true, ["folka"] = true
 }
 
-
 function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
     pcall(function()
         local allTBs = FindAllOf("TextBlock")
@@ -87,14 +86,6 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
                             -- Match HP TextBlock
                             if numVal == data.curHp and data.maxHp > 0 then
                                 local wantHp = string.format("%s/%s", fmtNum(data.curHp), fmtNum(data.maxHp))
-                                pcall(function()
-                                    local font = tb.Font
-                                    if font and font.Size and font.Size > 12 then
-                                        font.Size = 12
-                                        tb:SetFont(font)
-                                    end
-                                end)
-
                                 if rawText ~= wantHp then
                                     pcall(function() tb:SetText(FText(wantHp)) end)
                                 end
@@ -126,7 +117,6 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
                 end
             end
         end
-
 
     end)
 end

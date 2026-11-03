@@ -3590,69 +3590,93 @@ local function turn(uid, skills, w, phase)
         showBadge(string.format("[AUTO: %s]  |  %s", (autoProfileMode or "Auto"):upper(), tankStatus:upper()), 3.5)
     end
 
-    local needProvoke = (not Fight.claim.provoke) or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 3)
-    if needProvoke and phase == 0 and not alreadyFell and not allyCritical() and not dead then
-        -- Dynamic Role Determination for Tanking:
-        -- Evaluates designated party vanguard/tank dynamically based on Max HP, Tank Kit, and Healer status.
-        -- Ensures squishy characters (Fina, Sakura, etc.) leveling tank visions never hijack tank aggro from primary tanks.
-        local myKit = unitKit(uid) or {}
-        local myMaxHp = stat(uid, PARAM.HP, true) or 1
-        local myName = unitName(uid):lower()
-        local isHealer = ((myKit.healScore or 0) >= 50)
-            or (myName:find("fina") ~= nil or myName:find("sakura") ~= nil or myName:find("nichol") ~= nil or myName:find("ayaka") ~= nil
-                or myName:find("folka") ~= nil or myName:find("aerith") ~= nil or myName:find("garnet") ~= nil or myName:find("yuna") ~= nil
-                or myName:find("penelo") ~= nil or myName:find("lenna") ~= nil or myName:find("rosa") ~= nil or myName:find("alma") ~= nil)
+    -- Rain / Tank Aggro & Guard Priority:
+    -- Rain must ALWAYS provoke, multi-cover, and hold enemy aggro to protect the party.
+    local myKit = unitKit(uid) or {}
+    local myMaxHp = stat(uid, PARAM.HP, true) or 1
+    local myName = unitName(uid):lower()
+    local isKnownTank = (myName:find("rain") ~= nil or myName:find("cecil") ~= nil or myName:find("charlotte") ~= nil
+        or myName:find("snow") ~= nil or myName:find("basch") ~= nil or myName:find("sieghard") ~= nil
+        or myName:find("wilhelm") ~= nil or myName:find("gladio") ~= nil or myName:find("wol") ~= nil
+        or myName:find("warrior of light") ~= nil or myName:find("cagnazzo") ~= nil or myName:find("barret") ~= nil
+        or myName:find("galuf") ~= nil or myName:find("gabranth") ~= nil)
 
-        local otherBetterTankAlive = false
-        for _, a in ipairs(w.allies) do
-            if a.id ~= uid and not a.dead then
-                local aKit = unitKit(a.id) or {}
-                local aMaxHp = stat(a.id, PARAM.HP, true) or 1
-                local aName = unitName(a.id):lower()
-                local isKnownTank = (aName:find("rain") ~= nil or aName:find("cecil") ~= nil or aName:find("charlotte") ~= nil
-                    or aName:find("snow") ~= nil or aName:find("basch") ~= nil or aName:find("sieghard") ~= nil
-                    or aName:find("wilhelm") ~= nil or aName:find("gladio") ~= nil or aName:find("wol") ~= nil
-                    or aName:find("warrior of light") ~= nil or aName:find("cagnazzo") ~= nil or aName:find("barret") ~= nil
-                    or aName:find("galuf") ~= nil or aName:find("gabranth") ~= nil)
+    local otherBetterTankAlive = false
+    for _, a in ipairs(w.allies) do
+        if a.id ~= uid and not a.dead then
+            local aKit = unitKit(a.id) or {}
+            local aMaxHp = stat(a.id, PARAM.HP, true) or 1
+            local aName = unitName(a.id):lower()
+            local aIsKnownTank = (aName:find("rain") ~= nil or aName:find("cecil") ~= nil or aName:find("charlotte") ~= nil
+                or aName:find("snow") ~= nil or aName:find("basch") ~= nil or aName:find("sieghard") ~= nil
+                or aName:find("wilhelm") ~= nil or aName:find("gladio") ~= nil or aName:find("wol") ~= nil
+                or aName:find("warrior of light") ~= nil or aName:find("cagnazzo") ~= nil or aName:find("barret") ~= nil
+                or aName:find("galuf") ~= nil or aName:find("gabranth") ~= nil)
 
-                if isKnownTank then
-                    otherBetterTankAlive = true
-                    break
-                elseif (aKit.tankScore or 0) > 0 and aMaxHp > myMaxHp then
-                    otherBetterTankAlive = true
-                    break
-                elseif isHealer and aMaxHp >= myMaxHp and (aKit.healScore or 0) < 50 then
-                    otherBetterTankAlive = true
-                    break
-                end
+            if aIsKnownTank and not isKnownTank then
+                otherBetterTankAlive = true
+                break
+            elseif (aKit.tankScore or 0) > 0 and aMaxHp > myMaxHp and not isKnownTank then
+                otherBetterTankAlive = true
+                break
             end
         end
+    end
 
-        if not otherBetterTankAlive then
-            local provokeSkill = firstSkill(function(s)
+    local isDesignatedTank = isKnownTank or ((not otherBetterTankAlive) and ((myKit.tankScore or 0) > 0 or myName:find("rain") ~= nil))
+
+    -- Check if any non-tank ally took damage (needs immediate cover/taunt protection)
+    local anyAllyHurt = false
+    for _, a in ipairs(w.allies) do
+        if a.id ~= uid and not a.dead then
+            local r = hpRatio(a.id)
+            if r and r < 0.98 then
+                anyAllyHurt = true
+                break
+            end
+        end
+    end
+
+    local actionsSinceProvoke = #(Fight.actions or {}) - (Fight.lastProvokeAction or -99)
+    local needProvoke = isDesignatedTank and (
+        (not Fight.claim.provoke)
+        or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 1)
+        or (anyAllyHurt and actionsSinceProvoke >= 2)
+        or (actionsSinceProvoke >= 4)
+    )
+
+    if needProvoke and phase == 0 and not dead then
+        -- Find best guard/provoke skill (Priority: Multi-Cover/AoE Guard -> Single Provoke/Taunt -> Sentinel)
+        local provokeSkill = firstSkill(function(s)
+            local n = s.name and s.name:lower() or ""
+            return (n:find("multi%-cover") or n:find("multi cover") or n:find("roar")) and pay(s)
+        end)
+        if not provokeSkill then
+            provokeSkill = firstSkill(function(s)
                 local n = s.name and s.name:lower() or ""
                 local u = useOf(s) or (s.known and s.known.use) or ""
-                return (u == "provoke" or s.kind == "provoke" or n:find("provoke") or n:find("cover") or n:find("sentinel") or n:find("roar")) and pay(s)
+                return (u == "provoke" or s.kind == "provoke" or n:find("provoke") or n:find("taunt") or n:find("cover") or n:find("sentinel")) and pay(s)
             end)
-            if provokeSkill then
-                local sName = provokeSkill.name and provokeSkill.name:lower() or ""
-                local isAlly = friendAction(provokeSkill) or (provokeSkill.rel == REL.FRIEND) or (provokeSkill.target == TGT.FRIEND) or (provokeSkill.target == TGT.SELF) or (sName:find("cover") ~= nil) or (sName:find("sentinel") ~= nil)
-                local spread = aoeOf(provokeSkill) or partyOf(provokeSkill) or (sName:find("multi%-cover") ~= nil) or (sName:find("multi cover") ~= nil)
-                local tids = nil
-                local reason = "draw aggro"
-                if isAlly then
-                    reason = "guard party"
-                    tids = spread and idsOf(w.allies) or { uid }
-                else
-                    local provokeTarget = #pool > 0 and pool[1] or (w.enemies and w.enemies[1])
-                    tids = provokeTarget and { provokeTarget.id } or { uid }
-                end
-                local choice = finishChoice(uid, provokeSkill, reason, tids, spread and true or false)
-                if choice then
-                    Fight.claim.provoke = true
-                    Fight.claim.provokeRound = Fight.rounds or 0
-                    return choice
-                end
+        end
+        if provokeSkill then
+            local sName = provokeSkill.name and provokeSkill.name:lower() or ""
+            local isAlly = friendAction(provokeSkill) or (provokeSkill.rel == REL.FRIEND) or (provokeSkill.target == TGT.FRIEND) or (provokeSkill.target == TGT.SELF) or (sName:find("cover") ~= nil) or (sName:find("sentinel") ~= nil)
+            local spread = aoeOf(provokeSkill) or partyOf(provokeSkill) or (sName:find("multi%-cover") ~= nil) or (sName:find("multi cover") ~= nil)
+            local tids = nil
+            local reason = "draw aggro"
+            if isAlly then
+                reason = "guard party"
+                tids = spread and idsOf(w.allies) or { uid }
+            else
+                local provokeTarget = #pool > 0 and pool[1] or (w.enemies and w.enemies[1])
+                tids = provokeTarget and { provokeTarget.id } or { uid }
+            end
+            local choice = finishChoice(uid, provokeSkill, reason, tids, spread and true or false)
+            if choice then
+                Fight.claim.provoke = true
+                Fight.claim.provokeRound = Fight.rounds or 0
+                Fight.lastProvokeAction = #(Fight.actions or {})
+                return choice
             end
         end
     end
@@ -4276,6 +4300,7 @@ local function ensureBattle()
     Fight.building = nil
     Fight.kits = {}
     Fight.claim = { heal = {}, revive = {}, hone = {}, ether = {}, scan = {}, steal = {}, etherRound = false, guard = false, esper = false, lb = false, provoke = false, provokeRound = -99 }
+    Fight.lastProvokeAction = -99
     Fight.learnedAffinity = Fight.learnedAffinity or {}
     Fight.debuffOn, Fight.debuffSeen, Fight.debuffTold = {}, {}, {}
     Fight.went, Fight.rounds, Fight.seenFoe = {}, 0, {}
@@ -4475,6 +4500,7 @@ local function noteRound(uid)
             Fight.claim.heal = {}
             Fight.claim.ether = {}
             Fight.claim.etherRound = false
+            Fight.claim.provoke = false
         end
         Fight.afterBonus = false
     end
@@ -4793,6 +4819,7 @@ local function noteHand(v)
     if use == "provoke" then
         Fight.claim.provoke = true
         Fight.claim.provokeRound = Fight.rounds or 0
+        Fight.lastProvokeAction = #(Fight.actions or {})
     end
     if skill and (skill.attr == ATTR.SUMMON) then markSummon(skill) end
     if skill and (skill.attr == ATTR.FINISH) then Fight.resonanceSent = true end
