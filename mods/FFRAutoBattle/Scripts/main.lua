@@ -1001,25 +1001,36 @@ end
 local function elementFactor(skill, enemy)
     local ok, factor = pcall(function()
         local info = skill and (skill.known or knownOf(skill))
-        local el = info and info.element
+        local el = info and (info.elements or info.element)
         if not el or not enemy then return 1 end
-        if Fight and Fight.learnedAffinity and enemy then
-            local enemyKey = enemy.name and enemy.name:lower() or (enemy.id and tostring(enemy.id))
-            local learned = enemyKey and Fight.learnedAffinity[enemyKey]
-            if learned then
-                if learned.absorb and learned.absorb[el] then return 0 end
-                if learned.no and learned.no[el] then return 0 end
-                if learned.half and learned.half[el] then return 0.5 end
-                if learned.weak and learned.weak[el] then return 3 end
+        local elList = (type(el) == "table") and el or { el }
+
+        local bestF = 1
+        for _, e in ipairs(elList) do
+            local curF = 1
+            if Fight and Fight.learnedAffinity and enemy then
+                local enemyKey = enemy.name and enemy.name:lower() or (enemy.id and tostring(enemy.id))
+                local learned = enemyKey and Fight.learnedAffinity[enemyKey]
+                if learned then
+                    if learned.absorb and learned.absorb[e] then curF = 0
+                    elseif learned.no and learned.no[e] then curF = 0
+                    elseif learned.half and learned.half[e] then curF = 0.5
+                    elseif learned.weak and learned.weak[e] then curF = 3 end
+                end
             end
+            if curF == 1 then
+                local card = mobOf(enemy)
+                if card then
+                    if card.absorb and card.absorb[e] then curF = 0
+                    elseif card.no and card.no[e] then curF = 0
+                    elseif card.half and card.half[e] then curF = 0.5
+                    elseif card.weak and card.weak[e] then curF = 3 end
+                end
+            end
+            if curF > bestF then bestF = curF end
+            if curF == 0 and #elList == 1 then return 0 end
         end
-        local card = mobOf(enemy)
-        if not card then return 1 end
-        if card.absorb and card.absorb[el] then return 0 end
-        if card.no and card.no[el] then return 0 end
-        if card.half and card.half[el] then return 0.5 end
-        if card.weak and card.weak[el] then return 3 end
-        return 1
+        return bestF
     end)
     if not ok or type(factor) ~= "number" then return 1 end
     return factor
@@ -2352,31 +2363,15 @@ local function finishList(uid)
     end
 
     -- Universal Resonance Finisher Discovery:
-    -- If native engine query didn't find the finisher, inspect SkillIdx for all known Finish Blows and Healing Wind
+    -- Any living party member can execute any equipped Vision Finisher on the Resonance wheel!
     if #out == 0 and SkillIdx then
-        local who = unitName(uid)
         for id, s in pairs(SkillIdx) do
             local sn = s.name and s.name:lower() or ""
             local kn = knownOf(s)
             local isFinisher = (s.attr == ATTR.FINISH) or (kn and kn.use == "finish") or (sn == "healing wind")
             if isFinisher then
-                local el = kn and kn.element or nil
-                local fits = true
-                if who == "Rain" and el and el ~= "fire" and el ~= "light" and sn ~= "healing wind" then fits = false end
-                if who == "Lasswell" and el and el ~= "ice" and el ~= "wind" and sn ~= "healing wind" then fits = false end
-                if who == "Fina" and el and el ~= "light" and sn ~= "healing wind" then fits = false end
-                if who == "Sakura" and el and el ~= "thunder" and el ~= "dark" and sn ~= "healing wind" then fits = false end
-                if who == "Nichol" and el and el ~= "water" and sn ~= "healing wind" then fits = false end
-                if who == "Lid" and el and el ~= "thunder" and el ~= "earth" and sn ~= "healing wind" then fits = false end
-                if who == "Jake" and el and el ~= "fire" and el ~= "thunder" and sn ~= "healing wind" then fits = false end
-                if (who == "Dark Fina" or who == "Archwitch Fina") and el and el ~= "dark" and el ~= "earth" and el ~= "wind" and sn ~= "healing wind" then fits = false end
-                if who == "Folka" and el and el ~= "water" and el ~= "light" and sn ~= "healing wind" then fits = false end
-                if who == "Raegen" and el and el ~= "fire" and el ~= "ice" and sn ~= "healing wind" then fits = false end
-                if who == "Sieghard" and el and el ~= "earth" and sn ~= "healing wind" then fits = false end
-                if fits then
-                    add(id)
-                    found[#found + 1] = id
-                end
+                add(id)
+                found[#found + 1] = id
             end
         end
     end
@@ -5415,13 +5410,22 @@ local function resonanceWatch()
         return
     end
     if cfg.AttacksOnly then
+        -- Even in AttacksOnly ("Take it Easy") mode, always select the proper Resonance finisher
+        -- because Resonance costs 0 MP and is the defining climax combat mechanic.
         if not Fight.attackWheel then
             Fight.attackWheel = true
-            log("resonance phase, your pick")
+            log("resonance phase (auto-selecting optimal finisher)")
         end
-        return
     end
-    if Fight.resonanceSent then return end
+    if Fight.resonanceSent then
+        -- Retry safety: If finish command was sent but game remains in finish phase for > 1.2s, retry!
+        local now = os.clock and os.clock() or 0
+        if Fight.resonanceSentTime and (now - Fight.resonanceSentTime > 1.2) then
+            Fight.resonanceSent = false
+        else
+            return
+        end
+    end
     if not Fight.resonanceWait then
         Fight.resonanceWait = true
         return
@@ -5467,6 +5471,7 @@ local function resonanceWatch()
         return
     end
     Fight.resonanceSent = true
+    Fight.resonanceSentTime = os.clock and os.clock() or 0
     local who = unitName(bestUid)
     local line = string.format("resonance %s by %s -> %s", bestChoice.name, who, bestChoice.reason)
     log("%s", line)
