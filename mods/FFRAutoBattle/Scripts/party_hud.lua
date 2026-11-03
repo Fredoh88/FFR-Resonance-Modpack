@@ -86,9 +86,14 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
                         for _, data in pairs(allyStats) do
                             -- Match HP TextBlock
                             if numVal == data.curHp and data.maxHp > 0 then
-                                local wantHp = (data.hpPct < 100)
-                                    and string.format("%s/%s (%d%%)", fmtNum(data.curHp), fmtNum(data.maxHp), data.hpPct)
-                                    or  string.format("%s/%s", fmtNum(data.curHp), fmtNum(data.maxHp))
+                                local wantHp = string.format("%s/%s", fmtNum(data.curHp), fmtNum(data.maxHp))
+                                pcall(function()
+                                    local font = tb.Font
+                                    if font and font.Size and font.Size > 12 then
+                                        font.Size = 12
+                                        tb:SetFont(font)
+                                    end
+                                end)
 
                                 if rawText ~= wantHp then
                                     pcall(function() tb:SetText(FText(wantHp)) end)

@@ -4961,14 +4961,14 @@ local function makeWidget(kind, ax, ay, alx, aly, size)
     pcall(function() widget:SetIsFocusable(false) end)
     pcall(function() text:SetIsFocusable(false) end)
     widget:SetVisibility(1)
-    widget:AddToViewport(kind == "buildGuide" and 1500 or (kind == "toast" and 1100 or 1000))
+    widget:AddToViewport(kind == "toast" and 9999 or (kind == "buildGuide" and 1500 or 1000))
     return { widget = widget, text = text }
 end
 
 local function widget(kind)
     local w = Hud.box[kind]
     if w and w.widget:IsValid() and w.text:IsValid() then
-        if not w.widget:IsInViewport() then w.widget:AddToViewport(kind == "buildGuide" and 1500 or (kind == "toast" and 1100 or 1000)) end
+        if not w.widget:IsInViewport() then w.widget:AddToViewport(kind == "toast" and 9999 or (kind == "buildGuide" and 1500 or 1000)) end
         return w
     end
     if kind == "toast" then
@@ -4993,7 +4993,7 @@ Hud.toast = function(msg)
             w.widget:SetVisibility(3)
             Hud.toastSerial = Hud.toastSerial + 1
             local serial = Hud.toastSerial
-            gameDelay(1200, function()
+            gameDelay(2500, function()
                 if serial == Hud.toastSerial and w.widget:IsValid() then w.widget:SetVisibility(1) end
             end)
         end)
@@ -5484,9 +5484,10 @@ end
 local function pressAuto()
     cfg.Enabled = not cfg.Enabled
     saveState()
-    local msg = cfg.Enabled and "AutoBattle On" or "AutoBattle Off"
+    local msg = cfg.Enabled and "AutoBattle: ON" or "AutoBattle: OFF"
     log(msg)
     showToast(msg)
+    if Hud and Hud.badgeShow then Hud.badgeShow(msg, 3.0) end
     if cfg.Enabled then scheduleAct() end
 end
 
@@ -5496,6 +5497,7 @@ local function pressBasic()
     local msg = cfg.AttacksOnly and "AutoBattle: Take it Easy!" or "AutoBattle: No Mercy!"
     log(msg)
     showToast(msg)
+    if Hud and Hud.badgeShow then Hud.badgeShow(msg, 3.0) end
 end
 
 local function inFight()
@@ -5558,6 +5560,8 @@ loadConfig()
 bind("TakeOverKey", pressAuto)
 bind("MenuKey", pressBasic)
 pcall(function()
+    RegisterKeyBind(Key.F10, function() ExecuteInGameThread(pressAuto) end)
+    RegisterKeyBind(Key.F9, function() ExecuteInGameThread(pressBasic) end)
     RegisterKeyBind(Key.F1, function() ExecuteInGameThread(pressAuto) end)
     RegisterKeyBind(Key.ONE, function() ExecuteInGameThread(pressAuto) end)
     RegisterKeyBind(Key.F2, function() ExecuteInGameThread(pressBasic) end)
@@ -5580,7 +5584,7 @@ pcall(function()
     end)
     RegisterKeyBind(Key.F8, function() ExecuteInGameThread(toggleAdvisorHud) end)
     RegisterKeyBind(Key.F6, function() ExecuteInGameThread(toggleCombatSpeed) end)
-    RegisterKeyBind(Key.F9, function() ExecuteInGameThread(toggleBuildGuide) end)
+    RegisterKeyBind(Key.F11, function() ExecuteInGameThread(toggleBuildGuide) end)
 end)
 gameLoop(16, pollTriggers)
 gameLoop(1200, function()
