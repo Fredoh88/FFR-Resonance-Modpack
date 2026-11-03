@@ -1118,18 +1118,28 @@ local function isGuard(skill)
 end
 
 local function classify(skill)
-    if skill.effect == EFF.REVIVE or (skill.rel == REL.FRIEND and skill.targetState == 2) then return "revive" end
-    if skill.effect == EFF.CURE then return "cure" end
-    if isGuard(skill) then return "defend" end
-    if skill.rel == REL.FRIEND and skill.effect == EFF.DAMAGE and skill.paramType == PARAM.HP
-        and (skill.varType == VAR.UP or skill.varType == VAR.RATIO) then
+    local n = (skill.name or ""):lower()
+    if skill.effect == EFF.REVIVE or (skill.rel == REL.FRIEND and skill.targetState == 2)
+        or n:find("raise") or n:find("arise") or n:find("revive") or n:find("phoenix")
+        or (skill.known and skill.known.use == "revive") then
+        return "revive"
+    end
+    if skill.effect == EFF.CURE or (skill.known and skill.known.use == "cure") or n:find("esuna") then return "cure" end
+    if isGuard(skill) or (skill.known and skill.known.use == "guard") then return "defend" end
+    if (skill.rel == REL.FRIEND and skill.effect == EFF.DAMAGE and skill.paramType == PARAM.HP
+        and (skill.varType == VAR.UP or skill.varType == VAR.RATIO))
+        or (skill.known and skill.known.use == "heal") or n:find("cure") or n:find("cura") or n:find("curaga") or n:find("curaja") then
         return "heal"
     end
     if anyKey(skill.friendStatus) and skill.rel == REL.FRIEND and skill.effect ~= EFF.DAMAGE then return "buff" end
+    if (skill.rel == REL.FRIEND or skill.target == TGT.FRIEND or skill.target == TGT.SELF) and (skill.known and skill.known.use == "buff") then return "buff" end
     if anyKey(skill.enemyStatus) and skill.rel == REL.ENEMY and (skill.power or 0) <= 0 and (skill.breakPower or 0) <= 0 then
         return "debuff"
     end
     if skill.effect == EFF.ANALYZE and (skill.power or 0) <= 0 and (skill.breakPower or 0) <= 0 then return nil end
+    if skill.rel == REL.FRIEND or skill.target == TGT.FRIEND or skill.target == TGT.SELF or friendAction(skill) then
+        return "buff"
+    end
     if skill.effect == EFF.DAMAGE or (skill.power or 0) > 0 or (skill.breakPower or 0) > 0
         or skill.attr == ATTR.FIGHT or skill.attr == ATTR.ABILITY or skill.attr == ATTR.MAGIC
         or skill.attr == ATTR.LB or skill.attr == ATTR.FINISH or skill.attr == ATTR.SUMMON then
@@ -2443,16 +2453,22 @@ local function turn(uid, skills, w, phase)
         return s.known and s.known.patch and true or false
     end
     local function isHit(s, cashing)
+        local n = (s.name or ""):lower()
+        if n:find("raise") or n:find("arise") or n:find("revive") or n:find("phoenix") then
+            return false
+        end
+        if s.rel == REL.FRIEND or s.target == TGT.FRIEND or s.target == TGT.SELF or friendAction(s) then
+            return false
+        end
         if s.kind == "heal" or s.kind == "buff" or s.kind == "debuff" or s.kind == "cure"
             or s.kind == "revive" or s.kind == "defend" or s.kind == "scan" or s.kind == "provoke" or s.kind == "steal" then
             return false
         end
         if s.attr == ATTR.SUMMON or s.attr == ATTR.FINISH or s.attr == ATTR.ITEM then return false end
         local use = useOf(s)
-        if use == "skip" or use == "opener" or use == "guardbuff" or use == "guard" or use == "scan" or use == "heal" or use == "cure" or use == "provoke" or use == "steal" then
+        if use == "skip" or use == "opener" or use == "guardbuff" or use == "guard" or use == "scan" or use == "heal" or use == "cure" or use == "provoke" or use == "steal" or use == "revive" or use == "lb-revive" then
             return false
         end
-        if use == "lb-revive" then return false end
         if (s.attr == ATTR.LB) or (use == "lb-cash") or (use == "lb-setup") then
             return true
         end
@@ -2780,7 +2796,7 @@ local function turn(uid, skills, w, phase)
     local crit = allyCritical()
     local function deferHeal()
         if phase == PHASE_BONUS then return false end
-        if crit and (crit.hp or 1) < 0.15 then return false end
+        if crit and (crit.hp or 1) < 0.35 then return false end
         local list = (#pool > 0) and pool or open
         local function pays(spells, mp)
             for _, s in ipairs(spells) do
@@ -3116,6 +3132,9 @@ local function turn(uid, skills, w, phase)
         local bestS, bestU, bestScore, bestSpread = nil, nil, -1e9, false
         local function considerSkill(s, targets, spread)
             if not pay(s) then return end
+            if s.rel == REL.FRIEND or s.target == TGT.FRIEND or s.target == TGT.SELF or friendAction(s) then return end
+            local sName = (s.name or ""):lower()
+            if s.kind == "revive" or useOf(s) == "revive" or sName:find("raise") or sName:find("arise") or sName:find("revive") or sName:find("phoenix") then return end
             local spendLb = (useOf(s) == "lb-cash") or (s.attr == ATTR.LB)
             -- An area Limit hits every living enemy. A nulled element stays off.
             if spendLb and aoeOf(s) and s.known and s.known.element and (#w.enemies > 0) then
@@ -3632,25 +3651,39 @@ local function turn(uid, skills, w, phase)
         end
     end
 
+    local myHpRatio = hpRatio(uid) or 1
     local actionsSinceProvoke = #(Fight.actions or {}) - (Fight.lastProvokeAction or -99)
-    local needProvoke = isDesignatedTank and (
+    local needProvoke = isDesignatedTank and myHpRatio >= 0.35 and (
         (not Fight.claim.provoke)
-        or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 1)
-        or (anyAllyHurt and actionsSinceProvoke >= 2)
-        or (actionsSinceProvoke >= 4)
+        or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 3)
+        or (actionsSinceProvoke >= 8)
     )
 
+    -- If tank is critically wounded (< 35% HP), prioritize self-preservation (Sentinel / Defend / Potion)
+    if isDesignatedTank and myHpRatio < 0.35 and phase == 0 and not dead then
+        local selfGuard = firstSkill(function(s)
+            local n = s.name and s.name:lower() or ""
+            return (n:find("sentinel") or n:find("defend") or s.kind == "defend") and pay(s)
+        end)
+        if selfGuard then
+            local choice = finishChoice(uid, selfGuard, "emergency tank defense", { uid }, false)
+            if choice then return choice end
+        end
+    end
+
     if needProvoke and phase == 0 and not dead then
-        -- Find best guard/provoke skill (Priority: Multi-Cover/AoE Guard -> Single Provoke/Taunt -> Sentinel)
+        -- 1. Prioritize actual Provoke / Taunt / Roar to hold hostile enemy aggro!
         local provokeSkill = firstSkill(function(s)
             local n = s.name and s.name:lower() or ""
-            return (n:find("multi%-cover") or n:find("multi cover") or n:find("roar")) and pay(s)
+            local u = useOf(s) or (s.known and s.known.use) or ""
+            return (n:find("provoke") or n:find("taunt") or n:find("roar") or u == "provoke" or s.kind == "provoke")
+                and (not n:find("cover")) and pay(s)
         end)
-        if not provokeSkill then
+        -- 2. If no Provoke or already provoked, use Multi-Cover / Cover (if healthy >= 40% HP)
+        if not provokeSkill and myHpRatio >= 0.40 then
             provokeSkill = firstSkill(function(s)
                 local n = s.name and s.name:lower() or ""
-                local u = useOf(s) or (s.known and s.known.use) or ""
-                return (u == "provoke" or s.kind == "provoke" or n:find("provoke") or n:find("taunt") or n:find("cover") or n:find("sentinel")) and pay(s)
+                return (n:find("multi%-cover") or n:find("multi cover") or n:find("cover") or n:find("sentinel")) and pay(s)
             end)
         end
         if provokeSkill then
@@ -3658,7 +3691,7 @@ local function turn(uid, skills, w, phase)
             local isAlly = friendAction(provokeSkill) or (provokeSkill.rel == REL.FRIEND) or (provokeSkill.target == TGT.FRIEND) or (provokeSkill.target == TGT.SELF) or (sName:find("cover") ~= nil) or (sName:find("sentinel") ~= nil)
             local spread = aoeOf(provokeSkill) or partyOf(provokeSkill) or (sName:find("multi%-cover") ~= nil) or (sName:find("multi cover") ~= nil)
             local tids = nil
-            local reason = "draw aggro"
+            local reason = "provoke aggro"
             if isAlly then
                 reason = "guard party"
                 tids = spread and idsOf(w.allies) or { uid }

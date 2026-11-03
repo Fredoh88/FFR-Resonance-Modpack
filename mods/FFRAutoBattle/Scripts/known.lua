@@ -72,6 +72,11 @@ return {
         ["libra"] = { use = "scan" },
         ["steal"] = { use = "steal" },
         ["mug"] = { use = "steal" },
+        ["raise"] = { use = "revive" },
+        ["arise"] = { use = "revive" },
+        ["reraise"] = { use = "buff" },
+        ["phoenix down"] = { use = "revive" },
+        ["mega phoenix"] = { use = "revive", party = true },
         -- Vision Resonances. The wheel offers whichever of these the equipped Vision can activate.
         ["fatal impact"] = { element = "earth", phys = true, use = "finish" },
         ["errand's end"] = { element = "fire", magic = true, use = "finish" },

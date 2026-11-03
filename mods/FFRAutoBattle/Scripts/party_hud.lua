@@ -89,11 +89,11 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
                                 if data.hpPct >= 100 then
                                     wantHp = string.format("%s/%s", fmtNum(data.curHp), fmtNum(data.maxHp))
                                 else
-                                    -- Keep character count <= 13 characters so it never touches or overlaps the green HP label
-                                    if data.maxHp < 10000 then
-                                        wantHp = string.format("%d/%d %d%%", data.curHp, data.maxHp, data.hpPct)
+                                    -- Keep character count <= 11 characters so it never touches or overlaps the green HP label
+                                    if data.curHp < 10000 then
+                                        wantHp = string.format("%s (%d%%)", fmtNum(data.curHp), data.hpPct)
                                     else
-                                        wantHp = string.format("%d/%.1fk %d%%", data.curHp, data.maxHp / 1000, data.hpPct)
+                                        wantHp = string.format("%d (%d%%)", data.curHp, data.hpPct)
                                     end
                                 end
 
