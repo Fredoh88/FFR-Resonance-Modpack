@@ -616,7 +616,7 @@ local function weaknessTag(name)
         end
         if #tags > 0 then
             table.sort(tags)
-            return " [" .. table.concat(tags, "/") .. "]"
+            return "[" .. table.concat(tags, "/") .. "]"
         end
     end
     return ""
@@ -641,34 +641,49 @@ local function update(e, pv)
     local name, level = enemyInfoOf(e)
     if name then wTag = weaknessTag(name) end
 
-    -- Ultra-sleek, compact overhead HUD:
-    -- Omit redundant enemy names from the HP line to prevent horizontal text collision
-    -- with party status cards when enemies are in the foreground.
-    local header = ""
-    if level and level > 0 then
-        header = string.format("[Lv.%d] ", level)
+    -- Clean, compact name header:
+    -- Restores enemy name and level cleanly above the HP bar
+    local nameTag = (name and name ~= "") and name or ""
+    local lvlTag = (level and level > 0) and string.format("[Lv.%d]", level) or ""
+    local enemyHeader = ""
+    if nameTag ~= "" and lvlTag ~= "" then
+        enemyHeader = string.format("%s %s | ", nameTag, lvlTag)
+    elseif nameTag ~= "" then
+        enemyHeader = string.format("%s | ", nameTag)
+    elseif lvlTag ~= "" then
+        enemyHeader = string.format("%s | ", lvlTag)
     end
 
     local lootTag = ""
     if _G.FFR_LootedEnemies then
         if (name and _G.FFR_LootedEnemies[name]) or (addr(vm) and _G.FFR_LootedEnemies[addr(vm)]) then
-            lootTag = " [LOOTED]"
+            lootTag = "[LOOTED]"
         end
     end
 
     local hpPct = (hp and hpMax and hpMax > 0) and math.floor((hp / hpMax) * 100 + 0.5) or 0
     local brkPct = (brk and brkMax and brkMax > 0) and math.floor((brk / brkMax) * 100 + 0.5) or 0
 
-    -- No VM bound yet (bar being set up): show nothing rather than a guess.
+    -- Tactically place weaknesses and loot indicator on the Break line so the HP line is never crowded or clunky:
+    local brkExtra = ""
+    if wTag ~= "" and lootTag ~= "" then
+        brkExtra = " | " .. wTag .. " " .. lootTag
+    elseif wTag ~= "" then
+        brkExtra = " | " .. wTag
+    elseif lootTag ~= "" then
+        brkExtra = " | " .. lootTag
+    end
+
+    -- HP Bar (Top line): Identity, Level, HP numbers and lethal/kill preview
     if p and p.hpAfter and hp then
         local dmg = math.max(0, hp - p.hpAfter)
         local afterPct = (hpMax and hpMax > 0) and math.floor((p.hpAfter / hpMax) * 100 + 0.5) or 0
         if p.kill == "yes" then
-            setText(e, "hpStr", e.hp, string.format("%sHP %s " .. CONFIG.ARROW .. " 0 [LETHAL KILL! -%s]%s", header, fmtNum(hp), fmtNum(hp), wTag), CONFIG.COLOR_KILL)
+            setText(e, "hpStr", e.hp, string.format("%sHP %s " .. CONFIG.ARROW .. " 0 [LETHAL KILL! -%s]", enemyHeader, fmtNum(hp), fmtNum(hp)), CONFIG.COLOR_KILL)
         elseif p.kill == "maybe" then
-            setText(e, "hpStr", e.hp, string.format("%sHP %s " .. CONFIG.ARROW .. " ~%s (-%s | %d%%) [KILL?]%s", header, fmtNum(hp), fmtNum(p.hpAfter), fmtNum(dmg), afterPct, wTag), CONFIG.COLOR_KILL)
+            setText(e, "hpStr", e.hp, string.format("%sHP %s " .. CONFIG.ARROW .. " ~%s (-%s | %d%%) [KILL?]", enemyHeader, fmtNum(hp), fmtNum(p.hpAfter), fmtNum(dmg), afterPct), CONFIG.COLOR_KILL)
         else
-            setText(e, "hpStr", e.hp, string.format("%sHP %s " .. CONFIG.ARROW .. " ~%s (-%s | %d%%)%s", header, fmtNum(hp), fmtNum(p.hpAfter), fmtNum(dmg), afterPct, wTag), CONFIG.COLOR_HP_PREV)
+            setText(e, "hpStr", e.hp, string.format("%sHP %s " .. CONFIG.ARROW .. " ~%s (-%s | %d%%)", enemyHeader, fmtNum(hp), fmtNum(p.hpAfter), fmtNum(dmg), afterPct), CONFIG.COLOR_HP_PREV)
         end
         setBarPreview(e, (hpMax and hpMax > 0) and (p.hpAfter / hpMax) or nil)
     else
@@ -678,26 +693,26 @@ local function update(e, pv)
             hpColor = { R = 1.0, G = 0.85, B = 0.3, A = 1.0 }
             hpSuffix = string.format(" (%d%% EXECUTE)", hpPct)
         end
-        setText(e, "hpStr", e.hp, (hp and hpMax) and string.format("%sHP %s/%s%s%s%s", header, fmtNum(hp), fmtNum(hpMax), hpSuffix, wTag, lootTag) or "", hpColor)
+        setText(e, "hpStr", e.hp, (hp and hpMax) and string.format("%sHP %s/%s%s", enemyHeader, fmtNum(hp), fmtNum(hpMax), hpSuffix) or "", hpColor)
         setBarPreview(e, nil)
     end
 
+    -- Break Bar (Bottom line): Break gauge, Stagger alerts, Weaknesses & Loot status
     if p and p.brkAfter and brk and p.brkAfter ~= brk then
         if p.brkAfter <= 0 then
-            setText(e, "brkStr", e.brk, string.format("Break %s " .. CONFIG.ARROW .. " [STAGGER ON HIT!]", fmtNum(brk)), CONFIG.COLOR_BREAK_ON)
+            setText(e, "brkStr", e.brk, string.format("Break %s " .. CONFIG.ARROW .. " [STAGGER ON HIT!]%s", fmtNum(brk), brkExtra), CONFIG.COLOR_BREAK_ON)
         else
             local brkDmg = math.max(0, brk - p.brkAfter)
-            setText(e, "brkStr", e.brk, string.format("Break %s " .. CONFIG.ARROW .. " %s (-%s)", fmtNum(brk), fmtNum(p.brkAfter), fmtNum(brkDmg)), CONFIG.COLOR_BRK_PREV)
+            setText(e, "brkStr", e.brk, string.format("Break %s " .. CONFIG.ARROW .. " %s (-%s)%s", fmtNum(brk), fmtNum(p.brkAfter), fmtNum(brkDmg), brkExtra), CONFIG.COLOR_BRK_PREV)
         end
     else
         if brk and brk <= 0 and (brkMax and brkMax > 0) then
-            setText(e, "brkStr", e.brk, "★ [STAGGERED - x2.0 BONUS DMG!]", CONFIG.COLOR_BREAK_ON)
+            setText(e, "brkStr", e.brk, "[STAGGERED - x2.0 BONUS DMG!]" .. brkExtra, CONFIG.COLOR_BREAK_ON)
         else
-            setText(e, "brkStr", e.brk, (brk and brkMax) and string.format("Break %s/%s (%d%%)", fmtNum(brk), fmtNum(brkMax), brkPct) or "", CONFIG.COLOR_BREAK)
+            setText(e, "brkStr", e.brk, (brk and brkMax) and string.format("Break %s/%s (%d%%)%s", fmtNum(brk), fmtNum(brkMax), brkPct, brkExtra) or "", CONFIG.COLOR_BREAK)
         end
     end
 end
-
 local function isRuntimeEnemyUI(o)
     -- Runtime instances are named WBP_Btl_EnemyUI_C_<n>. Class templates and
     -- the CDO are not, and must never be modified.

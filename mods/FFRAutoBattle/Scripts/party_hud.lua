@@ -1,6 +1,6 @@
 -- Seamless Natural Party HUD for Final Fantasy Resonance
 -- 1. Cleans names to keep them pristine and prevent any text overflow / collisions
--- 2. Discovers and formats HP & MP gauge readouts into smooth, visually pleasing stats (Current / Max)
+-- 2. Formats HP with compact, clear percentage display when damaged (never overlapping HP icon)
 -- 3. Dynamic "Danger" HP Color Transitions:
 --    > 50% HP: Emerald Green (Safe)
 --    25% - 50% HP: Caution Amber/Gold (Watch)
@@ -77,15 +77,26 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
         for _, tb in ipairs(allTBs) do
             if tb and tb:IsValid() then
                 local okTxt, rawText = pcall(function() return tb:GetText():ToString() end)
-                if okTxt and rawText and #rawText > 0 and not rawText:find("/") then
-                    local cleanDigits = rawText:gsub(",", ""):gsub("%s+", "")
-                    local numVal = tonumber(cleanDigits)
+                if okTxt and rawText and #rawText > 0 then
+                    local firstNumStr = rawText:match("^(%d[%d,]*)")
+                    local firstNum = firstNumStr and tonumber((firstNumStr:gsub(",", "")))
 
-                    if numVal and numVal > 0 then
+                    if firstNum and firstNum > 0 then
                         for _, data in pairs(allyStats) do
                             -- Match HP TextBlock
-                            if numVal == data.curHp and data.maxHp > 0 then
-                                local wantHp = string.format("%s/%s", fmtNum(data.curHp), fmtNum(data.maxHp))
+                            if firstNum == data.curHp and data.maxHp > 0 then
+                                local wantHp
+                                if data.hpPct >= 100 then
+                                    wantHp = string.format("%s/%s", fmtNum(data.curHp), fmtNum(data.maxHp))
+                                else
+                                    -- Keep character count <= 13 characters so it never touches or overlaps the green HP label
+                                    if data.maxHp < 10000 then
+                                        wantHp = string.format("%d/%d %d%%", data.curHp, data.maxHp, data.hpPct)
+                                    else
+                                        wantHp = string.format("%d/%.1fk %d%%", data.curHp, data.maxHp / 1000, data.hpPct)
+                                    end
+                                end
+
                                 if rawText ~= wantHp then
                                     pcall(function() tb:SetText(FText(wantHp)) end)
                                 end
@@ -101,7 +112,7 @@ function M.tick(allies, statFn, paramOfFn, unitNameFn, brokenFn)
                                 break
 
                             -- Match MP TextBlock
-                            elseif numVal == data.curMp and data.maxMp > 0 and data.maxMp < 1000 then
+                            elseif firstNum == data.curMp and data.maxMp > 0 and data.maxMp < 1000 then
                                 local wantMp = string.format("%s/%s", fmtNum(data.curMp), fmtNum(data.maxMp))
                                 if rawText ~= wantMp then
                                     pcall(function() tb:SetText(FText(wantMp)) end)
