@@ -84,11 +84,31 @@ end
 function M.choosePotion(items, missing)
     local first, cover, coverAmt, best, bestAmt = nil, nil, nil, nil, -1
     for _, it in ipairs(items or {}) do
-        if it.hp or it.kind == "heal" then
+        if (it.hp or it.kind == "heal") and not it.party then
             if not first then first = it end
             local amount = it.amount
             if amount and (amount > 0) and missing and (missing > 0) then
                 if (amount >= missing) and ((not cover) or (amount < coverAmt)) then
+                    cover, coverAmt = it, amount
+                end
+                if amount > bestAmt then best, bestAmt = it, amount end
+            end
+        end
+    end
+    if cover then return cover end
+    if best then return best end
+    return first
+end
+
+-- Smallest ether that covers missing MP. If none covers, the largest amount.
+function M.chooseEther(items, missingMp)
+    local first, cover, coverAmt, best, bestAmt = nil, nil, nil, nil, -1
+    for _, it in ipairs(items or {}) do
+        if it.mp and it.kind ~= "revive" and not it.party then
+            if not first then first = it end
+            local amount = it.mpAmount or it.amount
+            if amount and (amount > 0) and missingMp and (missingMp > 0) then
+                if (amount >= missingMp) and ((not cover) or (amount < coverAmt)) then
                     cover, coverAmt = it, amount
                 end
                 if amount > bestAmt then best, bestAmt = it, amount end

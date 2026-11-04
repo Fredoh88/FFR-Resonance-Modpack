@@ -1602,11 +1602,11 @@ local function ownedRecovery(allowHeld)
             if not name or name == "" then name = row and row.name or ("item " .. id) end
             local lowered = name:lower()
             local listed = Known.items and Known.items[lowered]
-            local heldBack = (Known.leave and Known.leave[lowered]) or lowered:find("elixir", 1, true)
+            local heldBack = (Known.leave and Known.leave[lowered])
                 or lowered:find("scroll", 1, true)
             local common = allowHeld or (not (row and row.rare) and not heldBack)
             if common then
-                local hp, mp, kind, amount = false, false, nil, nil
+                local hp, mp, kind, amount, mpAmount, isParty, revivePower, tier = false, false, nil, nil, nil, false, 0.2, 1
                 if listed == "hp" then hp, kind = true, "heal" end
                 if listed == "mp" or lowered:find("ether", 1, true) then mp = true end
                 if listed == "revive" then kind = "revive" end
@@ -1632,6 +1632,32 @@ local function ownedRecovery(allowHeld)
                 end
                 if saysYes(bfl, "IsAbleRecoverHitPoint", id) or saysYes(lib, "IsAbleRecoverHitPoint", id) then hp = true end
                 if saysYes(bfl, "IsAbleRecoverMagicPoint", id) or saysYes(lib, "IsAbleRecoverMagicPoint", id) then mp = true end
+
+                -- Match known item power metadata for mathematically optimal selection
+                local kPower = Known.itemPower and (Known.itemPower[lowered] or Known.itemPower[name:lower()])
+                if kPower then
+                    if kPower.hp then
+                        hp = true
+                        kind = kind or "heal"
+                        if not amount or amount <= 0 then amount = kPower.hp end
+                    end
+                    if kPower.mp then
+                        mp = true
+                        if not mpAmount or mpAmount <= 0 then mpAmount = kPower.mp end
+                    end
+                    if kPower.party then isParty = true end
+                    if kPower.revive then
+                        kind = "revive"
+                        revivePower = kPower.revive
+                    end
+                    if kPower.cureAll then kind = "cure" end
+                    tier = kPower.tier or tier
+                end
+
+                if lowered:find("mist", 1, true) or lowered:find("mega", 1, true) then
+                    isParty = true
+                end
+
                 local element = nil
                 if listed == "fire" or listed == "ice" or listed == "thunder"
                     or listed == "water" or listed == "earth" or listed == "wind"
@@ -1646,7 +1672,8 @@ local function ownedRecovery(allowHeld)
                     out[#out + 1] = {
                         id = id, name = name, hp = hp, mp = mp, kind = kind,
                         element = element,
-                        count = count, amount = amount,
+                        count = count, amount = amount, mpAmount = mpAmount,
+                        party = isParty, revivePower = revivePower, tier = tier,
                     }
                 end
             end
@@ -1669,8 +1696,11 @@ local function ownedRecovery(allowHeld)
 end
 
 local function itemChoice(uid, item, reason, targetId, use)
-    local fake = { id = item.id, name = item.name, kind = "item", attr = ATTR.ITEM, target = TGT.SINGLE, cost = 0 }
-    local choice = finishChoice(uid, fake, reason, { targetId }, false, true)
+    local isAoe = item.party or (type(targetId) == "table" and #targetId > 1)
+    local targetType = isAoe and TGT.ALL or TGT.SINGLE
+    local tids = type(targetId) == "table" and targetId or { targetId }
+    local fake = { id = item.id, name = item.name, kind = "item", attr = ATTR.ITEM, target = targetType, cost = 0 }
+    local choice = finishChoice(uid, fake, reason, tids, isAoe, true)
     if choice then choice.itemUse = use end
     return choice
 end
@@ -1727,56 +1757,252 @@ end
 
 local function pickRecoveryItem(uid, w, want)
     if potFight(w) then return nil end
-    local items = ownedRecovery()
-    local function first(pred)
+    local isBoss = w.boss or hardField or (#w.enemies == 1)
+
+    -- In boss fights or tough encounters, always unlock all held/rare items
+    local allowHeld = isBoss or false
+
+    -- Check for party danger
+    local dangerCount = 0
+    local fallenCount = 0
+    for _, a in ipairs(w.allies or {}) do
+        if a.dead then
+            fallenCount = fallenCount + 1
+        elseif (a.hp or 1) < 0.35 then
+            dangerCount = dangerCount + 1
+        end
+    end
+    if dangerCount >= 1 or fallenCount >= 1 then
+        allowHeld = true
+    end
+
+    local items = ownedRecovery(allowHeld)
+    if #items == 0 then
+        items = ownedRecovery(true)
+    end
+    if #items == 0 then return nil end
+
+    if want == "revive" then
+        local deadAllies = {}
+        for _, u in ipairs(w.allies or {}) do
+            if u.dead then deadAllies[#deadAllies + 1] = u end
+        end
+        if #deadAllies == 0 then return nil end
+
+        -- Target priority: healer > dps > tank > any
+        local target = (Health.fallen and Health.fallen(w.allies, unitKit, offenseOf))
+            or deadAllies[1]
+        if not target then return nil end
+
+        -- 1. If 2+ allies down, look for party revive (Mega Phoenix)
+        if #deadAllies >= 2 then
+            for _, it in ipairs(items) do
+                if it.kind == "revive" and it.party then
+                    return itemChoice(uid, it, string.format("mega revive party (%d fallen)", #deadAllies), idsOf(deadAllies), "revive")
+                end
+            end
+        end
+
+        -- 2. Single target revive: pick best revive item
+        -- On bosses or when reviving key units, prioritize Phoenix Pinion (100% HP revive)
+        local bestRevive, bestTier = nil, -1
         for _, it in ipairs(items) do
-            if pred(it) then return it end
+            if it.kind == "revive" and not it.party then
+                local t = it.tier or 1
+                if (isBoss or #deadAllies >= 2) and t >= 2 and t > bestTier then
+                    bestRevive, bestTier = it, t
+                elseif not bestRevive or (bestTier < 2 and t > bestTier) then
+                    bestRevive, bestTier = it, t
+                end
+            end
+        end
+
+        if not bestRevive then
+            for _, it in ipairs(items) do
+                if it.kind == "revive" then bestRevive = it break end
+            end
+        end
+
+        if bestRevive then
+            local isParty = bestRevive.party or false
+            local tids = isParty and idsOf(deadAllies) or target.id
+            return itemChoice(uid, bestRevive, "item raise " .. target.name .. (bestRevive.tier and bestRevive.tier >= 2 and " (High Tier)" or ""), tids, "revive")
         end
         return nil
     end
-    if want == "revive" then
-        local dead = (Health.fallen and Health.fallen(w.allies, unitKit, offenseOf))
-            or firstDead(w, function(u) return u.acts ~= false end) or firstDead(w)
-        if not dead then return nil end
-        local it = first(function(it) return it.kind == "revive" end)
-        if it then return itemChoice(uid, it, "item raise " .. dead.name, dead.id, "revive") end
-        return nil
-    end
+
     if want == "heal" then
         local hurt = lowestAlly(w)
         if not hurt then return nil end
-        local missing = nil
-        local maxv = stat(hurt.id, PARAM.HP, true)
-        local ratio = hurt.hp or 1
-        if maxv and (maxv > 0) and (ratio < 1) then missing = (1 - ratio) * maxv end
-        local it = (Health.choosePotion and Health.choosePotion(items, missing))
-            or first(function(row) return row.hp or row.kind == "heal" end)
-        if not it then return nil end
-        local pct = math.floor((hurt.hp or 0) * 100 + 0.5)
-        return itemChoice(uid, it, string.format("item heal %s at %d%%", hurt.name, pct), hurt.id, "hp")
-    end
-    if want == "cure" then
-        local who = lockedAlly(w)
-        if not who then return nil end
-        local saw = false
-        local it = first(function(row)
-            if row.kind ~= "cure" then return false end
-            saw = true
-            if Health.itemClears then
-                return Health.itemClears(row.name, who.statuses)
+
+        -- Count wounded allies
+        local hurtCount = 0
+        local totalMissing = 0
+        for _, a in ipairs(w.allies or {}) do
+            if not a.dead and (a.hp or 1) < 0.75 then
+                hurtCount = hurtCount + 1
+                local mHp = stat(a.id, PARAM.HP, true) or 2000
+                totalMissing = totalMissing + (1 - (a.hp or 1)) * mHp
             end
-            return true
-        end)
-        if it then return itemChoice(uid, it, "item cure " .. who.name, who.id, "cure") end
-        if saw and Fight and (not Fight.cureHeld) then
-            Fight.cureHeld = true
-            log("cure item skipped, lock remains")
+        end
+
+        -- 1. If 2+ allies hurt and total deficit >= 1000 HP, prioritize Mist Potion / Mist Hi-Potion / Megalixir
+        if hurtCount >= 2 and totalMissing >= 1000 then
+            local bestPartyHeal, bestPartyTier = nil, -1
+            for _, it in ipairs(items) do
+                if (it.hp or it.kind == "heal") and it.party then
+                    local t = it.tier or 1
+                    if totalMissing >= 3000 and t >= 2 then
+                        if t > bestPartyTier then bestPartyHeal, bestPartyTier = it, t end
+                    elseif not bestPartyHeal or t > bestPartyTier then
+                        bestPartyHeal, bestPartyTier = it, t
+                    end
+                end
+            end
+            if bestPartyHeal then
+                return itemChoice(uid, bestPartyHeal, string.format("item party heal (%d allies hurt, -%d HP)", hurtCount, math.floor(totalMissing)), idsOf(w.allies), "hp")
+            end
+        end
+
+        -- 2. Single target healing: calculate missing HP
+        local maxv = stat(hurt.id, PARAM.HP, true) or 2000
+        local ratio = hurt.hp or 1
+        local missing = math.max(0, (1 - ratio) * maxv)
+
+        -- Check for Elixir condition: critically low HP (< 25%) AND critically low MP (< 25%)
+        local curMp = stat(hurt.id, PARAM.MP, false) or 100
+        local maxMp = stat(hurt.id, PARAM.MP, true) or 100
+        local mpRatio = maxMp > 0 and (curMp / maxMp) or 1
+        if ratio < 0.25 and mpRatio < 0.25 and (isBoss or dangerCount >= 2) then
+            for _, it in ipairs(items) do
+                local n = (it.name or ""):lower()
+                if n:find("elixir") and not it.party then
+                    return itemChoice(uid, it, string.format("emergency elixir %s (HP %d%%, MP %d%%)", hurt.name, math.floor(ratio * 100), math.floor(mpRatio * 100)), hurt.id, "hp")
+                end
+            end
+        end
+
+        -- 3. Select best potion matching the deficit
+        local it = (Health.choosePotion and Health.choosePotion(items, missing))
+        if not it then
+            local bestHp, maxAmt = nil, -1
+            for _, candidate in ipairs(items) do
+                if (candidate.hp or candidate.kind == "heal") and not candidate.party then
+                    local amt = candidate.amount or 0
+                    if amt > maxAmt then bestHp, maxAmt = candidate, amt end
+                end
+            end
+            it = bestHp
+        end
+        if not it then
+            for _, candidate in ipairs(items) do
+                if candidate.hp or candidate.kind == "heal" then it = candidate break end
+            end
+        end
+
+        if it then
+            local pct = math.floor((hurt.hp or 0) * 100 + 0.5)
+            local isParty = it.party or false
+            local tids = isParty and idsOf(w.allies) or hurt.id
+            return itemChoice(uid, it, string.format("item heal %s (%s) at %d%%", hurt.name, it.name, pct), tids, "hp")
         end
         return nil
     end
+
+    if want == "cure" then
+        local who = lockedAlly(w)
+        if not who then return nil end
+
+        -- Check how many allies have status locks
+        local lockedCount = 0
+        for _, a in ipairs(w.allies or {}) do
+            if not a.dead and lockedAllyUnit and lockedAllyUnit(a) then
+                lockedCount = lockedCount + 1
+            end
+        end
+
+        -- 1. If multiple allies locked, prefer party cure (Unicorn Horn)
+        if lockedCount >= 2 then
+            for _, it in ipairs(items) do
+                if it.kind == "cure" and it.party then
+                    return itemChoice(uid, it, string.format("party cure (%d allies afflicted)", lockedCount), idsOf(w.allies), "cure")
+                end
+            end
+        end
+
+        -- 2. Universal cure (Remedy) vs specific cure
+        local remedy = nil
+        local specific = nil
+        for _, it in ipairs(items) do
+            if it.kind == "cure" then
+                local n = (it.name or ""):lower()
+                if n == "remedy" then
+                    remedy = it
+                elseif Health.itemClears and Health.itemClears(it.name, who.statuses) then
+                    specific = it
+                    break
+                elseif not specific then
+                    specific = it
+                end
+            end
+        end
+        local it = specific or remedy
+        if it then
+            return itemChoice(uid, it, string.format("item cure %s (%s)", who.name, it.name), who.id, "cure")
+        end
+        return nil
+    end
+
     if want == "mp" then
-        local it = first(function(it) return it.mp and it.kind ~= "revive" end)
-        if it then return itemChoice(uid, it, "ether " .. unitName(uid), uid, "mp") end
+        local curMp = stat(uid, PARAM.MP, false) or 0
+        local maxMp = stat(uid, PARAM.MP, true) or 100
+        local missingMp = math.max(0, maxMp - curMp)
+
+        -- 1. Check if multiple allies are low on MP (< 25%)
+        local emptyMages = 0
+        for _, a in ipairs(w.allies or {}) do
+            if not a.dead then
+                local c = stat(a.id, PARAM.MP, false) or 0
+                local m = stat(a.id, PARAM.MP, true) or 100
+                if m > 50 and (c / m) < 0.25 then emptyMages = emptyMages + 1 end
+            end
+        end
+
+        if emptyMages >= 2 then
+            for _, it in ipairs(items) do
+                if it.mp and it.party and it.kind ~= "revive" then
+                    return itemChoice(uid, it, string.format("mist ether party (%d casters low)", emptyMages), idsOf(w.allies), "mp")
+                end
+            end
+        end
+
+        -- 2. Choose the Ether best matching missingMp
+        local it = (Health.chooseEther and Health.chooseEther(items, missingMp))
+        if not it then
+            local cover, coverAmt, best, bestAmt = nil, 999999, nil, -1
+            for _, candidate in ipairs(items) do
+                if candidate.mp and candidate.kind ~= "revive" and not candidate.party then
+                    local amt = candidate.mpAmount or candidate.amount or 50
+                    if amt >= missingMp and amt < coverAmt then
+                        cover, coverAmt = candidate, amt
+                    end
+                    if amt > bestAmt then best, bestAmt = candidate, amt end
+                end
+            end
+            it = cover or best
+        end
+        if not it then
+            for _, candidate in ipairs(items) do
+                if candidate.mp and candidate.kind ~= "revive" then it = candidate break end
+            end
+        end
+
+        if it then
+            local isParty = it.party or false
+            local tids = isParty and idsOf(w.allies) or uid
+            return itemChoice(uid, it, string.format("ether %s (%s, -%d MP)", unitName(uid), it.name, missingMp), tids, "mp")
+        end
+        return nil
     end
     return nil
 end

@@ -260,14 +260,35 @@ return {
         ["waterga surge"] = { stagger = 30, element = "water", use = "break" },
         ["wind cutter blade"] = { stagger = 35, element = "wind", use = "break" },
     },
-    -- Shop recovery the player can buy again. Elixirs, X-tier, and scrolls stay put.
+    -- Recovery and combat consumables categorized by tactical purpose
     items = {
+        -- HP Restoration
         ["potion"] = "hp",
         ["hi-potion"] = "hp",
+        ["x-potion"] = "hp",
         ["mist potion"] = "hp",
+        ["mist hi-potion"] = "hp",
+        ["mist x-potion"] = "hp",
+        ["elixir"] = "hp",
+        ["megalixir"] = "hp",
+
+        -- MP Restoration
         ["ether"] = "mp",
+        ["hi-ether"] = "mp",
+        ["turbo ether"] = "mp",
+        ["x-ether"] = "mp",
+        ["dry ether"] = "mp",
         ["mist ether"] = "mp",
+        ["mist hi-ether"] = "mp",
+        ["mist turbo ether"] = "mp",
+        ["mist x-ether"] = "mp",
+
+        -- Revive & Reanimation
         ["phoenix down"] = "revive",
+        ["phoenix pinion"] = "revive",
+        ["mega phoenix"] = "revive",
+
+        -- Status Ailment Cures
         ["antidote"] = "cure",
         ["antidote herb"] = "cure",
         ["eye drops"] = "cure",
@@ -277,6 +298,7 @@ return {
         ["gold needle"] = "cure",
         ["herb of awakening"] = "cure",
         ["remedy"] = "cure",
+
         -- Offensive & Tactical Combat Items (trigger elemental weakness / debuff)
         ["bomb fragment"] = "fire",
         ["bomb core"] = "fire",
@@ -299,18 +321,41 @@ return {
         ["shadow gem"] = "dark",
         ["spider's silk"] = "slow",
     },
+    itemPower = {
+        -- HP Consumables
+        ["potion"] = { hp = 200, tier = 1 },
+        ["hi-potion"] = { hp = 1000, tier = 2 },
+        ["x-potion"] = { hp = 9999, tier = 3 },
+        ["mist potion"] = { hp = 300, party = true, tier = 1 },
+        ["mist hi-potion"] = { hp = 1000, party = true, tier = 2 },
+        ["mist x-potion"] = { hp = 9999, party = true, tier = 3 },
+        ["elixir"] = { hp = 9999, mp = 999, tier = 4 },
+        ["megalixir"] = { hp = 9999, mp = 999, party = true, tier = 5 },
+
+        -- MP Consumables
+        ["ether"] = { mp = 50, tier = 1 },
+        ["hi-ether"] = { mp = 150, tier = 2 },
+        ["turbo ether"] = { mp = 500, tier = 3 },
+        ["x-ether"] = { mp = 999, tier = 4 },
+        ["dry ether"] = { mp = 250, tier = 3 },
+        ["mist ether"] = { mp = 50, party = true, tier = 1 },
+        ["mist hi-ether"] = { mp = 150, party = true, tier = 2 },
+        ["mist turbo ether"] = { mp = 500, party = true, tier = 3 },
+        ["mist x-ether"] = { mp = 999, party = true, tier = 4 },
+
+        -- Revive Consumables
+        ["phoenix down"] = { revive = 0.20, tier = 1 },
+        ["phoenix pinion"] = { revive = 1.00, tier = 2 },
+        ["mega phoenix"] = { revive = 0.50, party = true, tier = 3 },
+
+        -- Status Consumables
+        ["remedy"] = { cureAll = true, tier = 2 },
+        ["unicorn horn"] = { cureAll = true, party = true, tier = 3 },
+    },
+    -- Non-combat exploration items that should never be consumed in battle
     leave = {
-        ["elixir"] = true,
-        ["megalixir"] = true,
-        ["x-potion"] = true,
-        ["mist hi-potion"] = true,
-        ["mist x-potion"] = true,
-        ["turbo ether"] = true,
-        ["mist turbo ether"] = true,
-        ["x-ether"] = true,
-        ["mist x-ether"] = true,
-        ["phoenix pinion"] = true,
         ["tent"] = true,
+        ["cottage"] = true,
         ["healing spring"] = true,
     },
 }

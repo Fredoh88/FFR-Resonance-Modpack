@@ -20,7 +20,7 @@
       * Replace Thunder -> Thundaga (0 AP)
 
 [Fina] Role: Healer
-  - Total Equipped Skills: 32 (Phys: 1, Mag: 4, Support: 6)
+  - Total Equipped Skills: 33 (Phys: 1, Mag: 4, Support: 6)
   - Elements Covered: fire, ice, light, thunder
   - Best Stagger Skill: Cura (Stagger Power: 55)
   - Best Burst Skill: Cura (Raw Power: 500)
