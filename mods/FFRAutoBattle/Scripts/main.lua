@@ -1829,9 +1829,18 @@ local function pickRecoveryItem(uid, w, want)
         end
         if #deadAllies == 0 then return nil end
 
-        -- Target priority: healer > dps > tank > any
-        local target = (Health.fallen and Health.fallen(w.allies, unitKit, offenseOf))
-            or deadAllies[1]
+        -- Target priority: prefer unclaimed fallen allies so multiple party members revive different heroes concurrently!
+        local target = nil
+        for _, u in ipairs(deadAllies) do
+            if not Fight.claim.revive[u.id] then
+                target = u
+                break
+            end
+        end
+        if not target then
+            target = (Health.fallen and Health.fallen(w.allies, unitKit, offenseOf))
+                or deadAllies[1]
+        end
         if not target then return nil end
 
         -- 1. If 2+ allies down, look for party revive (Mega Phoenix)
@@ -2944,22 +2953,32 @@ local function turn(uid, skills, w, phase)
         if not a.dead then Fight.claim.revive[a.id] = nil
         elseif a.acts ~= false and a.id ~= uid then Fight.downNow[#Fight.downNow + 1] = a end
     end
-    -- Self-Raise Protection: The acting unit (uid) is actively alive and can NEVER be target of their own revive!
+    -- All-Hands Emergency Revive Targeting:
+    -- Prefer an unclaimed dead ally so multiple party members revive different fallen heroes concurrently!
     local dead = nil
     for _, a in ipairs(w.allies) do
-        if a.dead and a.id ~= uid then
+        if a.dead and a.id ~= uid and not Fight.claim.revive[a.id] then
             dead = a
             break
         end
     end
     if not dead and Health.fallen then
         local candidate = Health.fallen(w.allies, unitKit, offenseOf)
-        if candidate and candidate.id ~= uid then dead = candidate end
+        if candidate and candidate.id ~= uid and not Fight.claim.revive[candidate.id] then dead = candidate end
     end
     if not dead then
-        local candidate = firstDead(w, function(u) return u.acts ~= false and u.id ~= uid end)
-            or firstDead(w, function(u) return u.id ~= uid end)
+        local candidate = firstDead(w, function(u) return u.acts ~= false and u.id ~= uid and not Fight.claim.revive[u.id] end)
+            or firstDead(w, function(u) return u.id ~= uid and not Fight.claim.revive[u.id] end)
         if candidate and candidate.id ~= uid then dead = candidate end
+    end
+    -- Fallback to any dead ally if claims are resolving
+    if not dead then
+        for _, a in ipairs(w.allies) do
+            if a.dead and a.id ~= uid then
+                dead = a
+                break
+            end
+        end
     end
 
     -- Extend revive claim cooldown to prevent spamming while revival animation / HP update is resolving
@@ -2991,130 +3010,114 @@ local function turn(uid, skills, w, phase)
     end
 
     if dead and not Fight.claim.revive[dead.id] then
-        local oneLeft, calm = #w.enemies <= 1, true
-        for _, u in ipairs(w.enemies) do
-            local card = mobOf(u)
-            if card and card.danger and card.danger[1] then calm = false end
-            local _, remain, empty, _ = gaugeOfEnemy(u)
-            local gauge = gaugeOfEnemy(u)
-            if not empty and remain > gauge * 0.25 then calm = false end
-        end
-        if not (oneLeft and calm) then
-            local downN = #Fight.downNow
-            if (downN < 1) and dead then downN = 1 end
-            local isBoss = w.boss or hardField or (#w.enemies == 1)
+        local downN = #Fight.downNow
+        if (downN < 1) and dead then downN = 1 end
+        local isBoss = w.boss or hardField or (#w.enemies == 1)
 
-            -- Priority 1: Multi-Target Party Revive when 2+ allies are down
-            if downN >= 2 then
-                -- Check for Party Revive Limit Burst / Spell (e.g. Radiant Restoration)
-                if Limits.bestRaise then
-                    local pSpell, partyHit = Limits.bestRaise(skills, downN, pay, false)
-                    if pSpell and partyHit then
-                        local choice = finishChoice(uid, pSpell, "raise the party", idsOf(Fight.downNow), true)
-                        if choice then
-                            local at = #(Fight.actions or {})
-                            for _, a in ipairs(Fight.downNow) do
-                                Fight.claim.revive[a.id] = at
-                                Fight.claim.heal[a.id] = nil
-                            end
-                            return choice
+        -- Priority 1: Multi-Target Party Revive when 2+ allies are down
+        if downN >= 2 then
+            -- Check for Party Revive Limit Burst / Spell (e.g. Radiant Restoration)
+            if Limits.bestRaise then
+                local pSpell, partyHit = Limits.bestRaise(skills, downN, pay, false)
+                if pSpell and partyHit then
+                    local choice = finishChoice(uid, pSpell, "raise the party", idsOf(Fight.downNow), true)
+                    if choice then
+                        local at = #(Fight.actions or {})
+                        for _, a in ipairs(Fight.downNow) do
+                            Fight.claim.revive[a.id] = at
+                            Fight.claim.heal[a.id] = nil
                         end
-                    end
-                end
-
-                -- Check for Party Revive Item (Mega Phoenix)
-                local partyItem = pickRecoveryItem(uid, w, "revive")
-                if partyItem and (partyItem.party or partyItem.spread) then
-                    local at = #(Fight.actions or {})
-                    for _, a in ipairs(Fight.downNow) do
-                        Fight.claim.revive[a.id] = at
-                        Fight.claim.heal[a.id] = nil
-                    end
-                    return partyItem
-                end
-            end
-
-            -- Priority 2: Superior Full HP Revive (Arise spell or Phoenix Pinion item)
-            -- Check if caster has Arise (100% HP revive spell)
-            local ariseSpell = nil
-            for _, s in ipairs(skills) do
-                if (s.kind == "revive" or useOf(s) == "revive") and pay(s) then
-                    local sName = (s.name or ""):lower()
-                    if sName:find("arise") or sName:find("full raise") then
-                        ariseSpell = s
-                        break
+                        return choice
                     end
                 end
             end
-            if ariseSpell then
-                local choice = finishChoice(uid, ariseSpell, "arise " .. dead.name, { dead.id }, false)
-                if choice then
-                    Fight.claim.revive[dead.id] = #(Fight.actions or {})
-                    Fight.claim.heal[dead.id] = nil
-                    return choice
-                end
-            end
 
-            -- If caster does NOT have Arise (only basic 10% HP Raise), but we have Phoenix Pinion (100% HP item):
-            -- Prioritize Phoenix Pinion over low-tier Raise on bosses or when 2+ allies down so heroes don't get one-shot immediately!
-            if isBoss or downN >= 2 then
-                local pinionItem = pickRecoveryItem(uid, w, "revive")
-                if pinionItem and ((pinionItem.tier and pinionItem.tier >= 2) or (pinionItem.name and pinionItem.name:lower():find("pinion"))) then
-                    Fight.claim.revive[dead.id] = #(Fight.actions or {})
-                    Fight.claim.heal[dead.id] = nil
-                    return pinionItem
-                end
-            end
-
-            -- Priority 3: Standard Revive Spell (Raise)
-            local function raiseFallen(allowOne)
-                -- If dedicated healer is alive, non-healers should NOT spend MP on revive spells (they can use items instead)
-                if not isDedicatedHealer and dedicatedHealerAlive and not allowOne then
-                    return nil
-                end
-                local s, partyHit = nil, false
-                if Limits.bestRaise then
-                    s, partyHit = Limits.bestRaise(skills, downN, pay, allowOne)
-                elseif not allowOne then
-                    for _, row in ipairs(skills) do
-                        if (row.kind == "revive") and pay(row) then s = row break end
-                    end
-                end
-                if not s then return nil end
-                local many = partyHit and (downN >= 2)
-                local ids = (many and idsOf(Fight.downNow)) or { dead.id }
-                local why = (many and "raise the party") or ("raise " .. dead.name)
-                local choice = finishChoice(uid, s, why, ids, many and true or false)
-                if not choice then return nil end
+            -- Check for Party Revive Item (Mega Phoenix)
+            local partyItem = pickRecoveryItem(uid, w, "revive")
+            if partyItem and (partyItem.party or partyItem.spread) then
                 local at = #(Fight.actions or {})
-                Fight.claim.revive[dead.id] = at
-                Fight.claim.heal[dead.id] = nil
-                if many then
-                    for _, ally in ipairs(Fight.downNow) do
-                        Fight.claim.revive[ally.id] = at
-                        Fight.claim.heal[ally.id] = nil
-                    end
+                for _, a in ipairs(Fight.downNow) do
+                    Fight.claim.revive[a.id] = at
+                    Fight.claim.heal[a.id] = nil
                 end
+                return partyItem
+            end
+        end
+
+        -- Priority 2: Superior Full HP Revive (Arise spell or Phoenix Pinion item)
+        -- Check if caster has Arise (100% HP revive spell)
+        local ariseSpell = nil
+        for _, s in ipairs(skills) do
+            if (s.kind == "revive" or useOf(s) == "revive") and pay(s) then
+                local sName = (s.name or ""):lower()
+                if sName:find("arise") or sName:find("full raise") then
+                    ariseSpell = s
+                    break
+                end
+            end
+        end
+        if ariseSpell then
+            local choice = finishChoice(uid, ariseSpell, "arise " .. dead.name, { dead.id }, false)
+            if choice then
+                Fight.claim.revive[dead.id] = #(Fight.actions or {})
+                Fight.claim.heal[dead.id] = nil
                 return choice
             end
+        end
 
-            local choice = raiseFallen(false)
-            if choice then return choice end
+        -- If caster does NOT have Arise (only basic 10% HP Raise or no spell), but we have Phoenix Pinion (100% HP item):
+        -- Prioritize Phoenix Pinion over low-tier Raise on bosses or when 2+ allies down so heroes don't get one-shot immediately!
+        if isBoss or downN >= 2 then
+            local pinionItem = pickRecoveryItem(uid, w, "revive")
+            if pinionItem and ((pinionItem.tier and pinionItem.tier >= 2) or (pinionItem.name and pinionItem.name:lower():find("pinion"))) then
+                Fight.claim.revive[dead.id] = #(Fight.actions or {})
+                Fight.claim.heal[dead.id] = nil
+                return pinionItem
+            end
+        end
 
-            -- Priority 4: Fallback to standard revive item (Phoenix Down)
-            local canUseReviveItem = isDedicatedHealer or (not dedicatedHealerAlive) or (dedicatedHealerMp < 20)
-            if canUseReviveItem then
-                local item = pickRecoveryItem(uid, w, "revive")
-                if item then
-                    Fight.claim.revive[dead.id] = #(Fight.actions or {})
-                    Fight.claim.heal[dead.id] = nil
-                    return item
+        -- Priority 3: Standard Revive Spell (Raise)
+        local function raiseFallen(allowOne)
+            local s, partyHit = nil, false
+            if Limits.bestRaise then
+                s, partyHit = Limits.bestRaise(skills, downN, pay, allowOne)
+            elseif not allowOne then
+                for _, row in ipairs(skills) do
+                    if (row.kind == "revive") and pay(row) then s = row break end
                 end
             end
-
-            choice = raiseFallen(true)
-            if choice then return choice end
+            if not s then return nil end
+            local many = partyHit and (downN >= 2)
+            local ids = (many and idsOf(Fight.downNow)) or { dead.id }
+            local why = (many and "raise the party") or ("raise " .. dead.name)
+            local choice = finishChoice(uid, s, why, ids, many and true or false)
+            if not choice then return nil end
+            local at = #(Fight.actions or {})
+            Fight.claim.revive[dead.id] = at
+            Fight.claim.heal[dead.id] = nil
+            if many then
+                for _, ally in ipairs(Fight.downNow) do
+                    Fight.claim.revive[ally.id] = at
+                    Fight.claim.heal[ally.id] = nil
+                end
+            end
+            return choice
         end
+
+        local choice = raiseFallen(false)
+        if choice then return choice end
+
+        -- Priority 4: All-Hands Revive with Items (Phoenix Pinion / Phoenix Down)
+        -- EVERYONE in the party tries to revive fallen allies immediately!
+        local item = pickRecoveryItem(uid, w, "revive")
+        if item then
+            Fight.claim.revive[dead.id] = #(Fight.actions or {})
+            Fight.claim.heal[dead.id] = nil
+            return item
+        end
+
+        choice = raiseFallen(true)
+        if choice then return choice end
     end
 
     local function healNow(hurt, why, itemAt)
