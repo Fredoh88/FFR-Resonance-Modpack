@@ -1825,7 +1825,9 @@ local function pickRecoveryItem(uid, w, want)
     if want == "revive" then
         local deadAllies = {}
         for _, u in ipairs(w.allies or {}) do
-            if u.dead then deadAllies[#deadAllies + 1] = u end
+            local cur = stat(u.id, PARAM.HP, false)
+            local reallyDead = (cur ~= nil and cur <= 0) or (cur == nil and u.dead and (u.hp or 0) <= 0)
+            if reallyDead then deadAllies[#deadAllies + 1] = u end
         end
         if #deadAllies == 0 then return nil end
 
@@ -1842,6 +1844,10 @@ local function pickRecoveryItem(uid, w, want)
                 or deadAllies[1]
         end
         if not target then return nil end
+
+        -- Absolute Live HP Guard: NEVER consume a revive item on an ally whose HP > 0!
+        local targetLiveHp = stat(target.id, PARAM.HP, false)
+        if targetLiveHp ~= nil and targetLiveHp > 0 then return nil end
 
         -- 1. If 2+ allies down, look for party revive (Mega Phoenix)
         if #deadAllies >= 2 then
@@ -2948,33 +2954,52 @@ local function turn(uid, skills, w, phase)
         appendLog("  " .. line)
     end
 
+    -- Live Engine HP Synchronization: If an ally has HP > 0, they are 100% ALIVE!
+    for _, a in ipairs(w.allies) do
+        local cur = stat(a.id, PARAM.HP, false)
+        if cur and cur > 0 then
+            a.dead = false
+            a.hp = hpRatio(a.id) or (cur / math.max(1, stat(a.id, PARAM.HP, true) or 1))
+            Fight.claim.revive[a.id] = nil
+        end
+    end
+
     Fight.downNow = {}
     for _, a in ipairs(w.allies) do
-        if not a.dead then Fight.claim.revive[a.id] = nil
-        elseif a.acts ~= false and a.id ~= uid then Fight.downNow[#Fight.downNow + 1] = a end
+        local cur = stat(a.id, PARAM.HP, false)
+        local isDead = (cur ~= nil and cur <= 0) or (cur == nil and a.dead and (a.hp or 0) <= 0)
+        if isDead and a.acts ~= false and a.id ~= uid then
+            a.dead = true
+            Fight.downNow[#Fight.downNow + 1] = a
+        end
     end
+
     -- All-Hands Emergency Revive Targeting:
-    -- Prefer an unclaimed dead ally so multiple party members revive different fallen heroes concurrently!
+    -- Prefer an unclaimed TRULY dead ally (live HP <= 0) so multiple party members revive different heroes concurrently!
     local dead = nil
     for _, a in ipairs(w.allies) do
-        if a.dead and a.id ~= uid and not Fight.claim.revive[a.id] then
+        local cur = stat(a.id, PARAM.HP, false)
+        local isDead = (cur ~= nil and cur <= 0) or (cur == nil and a.dead and (a.hp or 0) <= 0)
+        if isDead and a.id ~= uid and not Fight.claim.revive[a.id] then
             dead = a
             break
         end
     end
     if not dead and Health.fallen then
         local candidate = Health.fallen(w.allies, unitKit, offenseOf)
-        if candidate and candidate.id ~= uid and not Fight.claim.revive[candidate.id] then dead = candidate end
+        if candidate and candidate.id ~= uid then
+            local cur = stat(candidate.id, PARAM.HP, false)
+            if (cur ~= nil and cur <= 0) and not Fight.claim.revive[candidate.id] then
+                dead = candidate
+            end
+        end
     end
-    if not dead then
-        local candidate = firstDead(w, function(u) return u.acts ~= false and u.id ~= uid and not Fight.claim.revive[u.id] end)
-            or firstDead(w, function(u) return u.id ~= uid and not Fight.claim.revive[u.id] end)
-        if candidate and candidate.id ~= uid then dead = candidate end
-    end
-    -- Fallback to any dead ally if claims are resolving
+    -- Fallback to any truly dead ally if claims are resolving
     if not dead then
         for _, a in ipairs(w.allies) do
-            if a.dead and a.id ~= uid then
+            local cur = stat(a.id, PARAM.HP, false)
+            local isDead = (cur ~= nil and cur <= 0) or (cur == nil and a.dead and (a.hp or 0) <= 0)
+            if isDead and a.id ~= uid then
                 dead = a
                 break
             end
@@ -3006,6 +3031,14 @@ local function turn(uid, skills, w, phase)
                 dedicatedHealerMp = stat(a.id, PARAM.MP, false) or 0
                 break
             end
+        end
+    end
+
+    -- Absolute Sanity Check: Never attempt revive if dead ally's live HP is > 0!
+    if dead then
+        local liveHp = stat(dead.id, PARAM.HP, false)
+        if liveHp ~= nil and liveHp > 0 then
+            dead = nil
         end
     end
 
@@ -4685,12 +4718,16 @@ local function consider(uid)
     for _, s in ipairs(usable) do
         if s.kind == "revive" then
             for _, id in ipairs(targetsFor(uid, s, REL.FRIEND)) do
-                local seen = false
-                for _, a in ipairs(w.allies) do
-                    if a.id == id then a.dead = true seen = true end
-                end
-                if not seen then
-                    w.allies[#w.allies + 1] = { id = id, name = unitName(id), hp = 0, dead = true, statuses = {}, acts = true }
+                local curHp = stat(id, PARAM.HP, false)
+                -- Live HP Check: NEVER flag an ally as dead if they are alive (HP > 0)!
+                if curHp ~= nil and curHp <= 0 then
+                    local seen = false
+                    for _, a in ipairs(w.allies) do
+                        if a.id == id then a.dead = true seen = true end
+                    end
+                    if not seen then
+                        w.allies[#w.allies + 1] = { id = id, name = unitName(id), hp = 0, dead = true, statuses = {}, acts = true }
+                    end
                 end
             end
         end
