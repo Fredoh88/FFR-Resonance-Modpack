@@ -996,15 +996,32 @@ local function roleMasteryBonus(uid, skill, w)
             bonus = bonus + 7500
         end
 
-    -- 3. Fina (Divine Luminary & Healer)
+    -- 3. Fina (Divine Luminary & Healer) - Dynamic Heals & Full Revives
     elseif who:find("fina") or who:find("ayaka") or who:find("folka") or who:find("garnet") or who:find("aerith") then
-        if sName:find("curaja") or sName:find("curaga") or sName:find("arise") or sName:find("radiant restoration")
-           or (sKind == "heal" and (sName:find("cura") or sName:find("curaja"))) or sKind == "revive" then
-            bonus = bonus + 9500 -- 100% Full Party Healing & Revive
+        -- Check if any party member is wounded (< 50% HP)
+        local allyHurt = false
+        local allyMortal = false
+        if w and w.allies then
+            for _, a in ipairs(w.allies) do
+                if not a.dead then
+                    local r = a.hp or 1
+                    if r < 0.50 then allyHurt = true end
+                    if r < 0.35 then allyMortal = true end
+                end
+            end
+        end
+        if sName:find("arise") or sName:find("full raise") then
+            bonus = bonus + 12000 -- 100% Full HP Revive (Guarantees survival)
+        elseif sName:find("curaja") or sName:find("curaga") or sName:find("radiant restoration") then
+            bonus = bonus + (allyMortal and 15000 or (allyHurt and 11000 or 7000))
+        elseif sKind == "heal" and (sName:find("cura") or sName:find("cure")) then
+            bonus = bonus + (allyMortal and 12000 or (allyHurt and 9000 or 5000))
+        elseif sName:find("raise") or sKind == "revive" then
+            bonus = bonus + 9000
         elseif sName:find("cheer") or sName:find("haste") or sName:find("shell") or sName:find("protect") or sName:find("regen") or sKind == "buff" then
-            bonus = bonus + 6500 -- Party Buffing
+            bonus = bonus + (allyHurt and 3000 or 6500) -- Buffing secondary to healing wounded allies
         elseif sName:find("holy ray") or sName:find("banishga") or sName:find("dualcast") then
-            bonus = bonus + 6000
+            bonus = bonus + (allyHurt and 1000 or 6000)
         end
 
     -- 4. Lid (Mechanist & Tactical Debuffer)
@@ -2902,18 +2919,52 @@ local function turn(uid, skills, w, phase)
     Fight.downNow = {}
     for _, a in ipairs(w.allies) do
         if not a.dead then Fight.claim.revive[a.id] = nil
-        elseif a.acts ~= false then Fight.downNow[#Fight.downNow + 1] = a end
+        elseif a.acts ~= false and a.id ~= uid then Fight.downNow[#Fight.downNow + 1] = a end
     end
-    local dead = (Health.fallen and Health.fallen(w.allies, unitKit, offenseOf))
-        or firstDead(w, function(u) return u.acts ~= false end) or firstDead(w)
+    -- Self-Raise Protection: The acting unit (uid) is actively alive and can NEVER be target of their own revive!
+    local dead = nil
+    for _, a in ipairs(w.allies) do
+        if a.dead and a.id ~= uid then
+            dead = a
+            break
+        end
+    end
+    if not dead and Health.fallen then
+        local candidate = Health.fallen(w.allies, unitKit, offenseOf)
+        if candidate and candidate.id ~= uid then dead = candidate end
+    end
+    if not dead then
+        local candidate = firstDead(w, function(u) return u.acts ~= false and u.id ~= uid end)
+            or firstDead(w, function(u) return u.id ~= uid end)
+        if candidate and candidate.id ~= uid then dead = candidate end
+    end
+
+    -- Extend revive claim cooldown to prevent spamming while revival animation / HP update is resolving
     if dead and Fight.claim.revive[dead.id] then
         local at = Fight.claim.revive[dead.id]
-        local waitN = #w.allies
-        if waitN < 2 then waitN = 2 end
+        local waitN = math.max(4, #w.allies * 2)
         if (type(at) == "number") and ((#(Fight.actions or {}) - at) >= waitN) then
             Fight.claim.revive[dead.id] = nil
         end
     end
+
+    -- Dedicated Healer Coordination:
+    -- If a dedicated White Mage / Healer (Fina/Ayaka/Aerith/Folka) is in the party and alive,
+    -- non-healers (like Lid/Lasswell) must not waste turns casting slow Revive spells
+    local whoStr = unitName(uid):lower()
+    local isDedicatedHealer = whoStr:find("fina") or whoStr:find("ayaka") or whoStr:find("folka")
+        or whoStr:find("garnet") or whoStr:find("aerith") or whoStr:find("rosa") or whoStr:find("lenna")
+    local dedicatedHealerAlive = false
+    for _, a in ipairs(w.allies) do
+        if not a.dead and a.id ~= uid then
+            local an = a.name:lower()
+            if an:find("fina") or an:find("ayaka") or an:find("folka") or an:find("garnet") or an:find("aerith") or an:find("rosa") or an:find("lenna") then
+                dedicatedHealerAlive = true
+                break
+            end
+        end
+    end
+
     if dead and not Fight.claim.revive[dead.id] then
         local oneLeft, calm = #w.enemies <= 1, true
         for _, u in ipairs(w.enemies) do
@@ -2925,6 +2976,10 @@ local function turn(uid, skills, w, phase)
         end
         if not (oneLeft and calm) then
             local function raiseFallen(allowOne)
+                -- If dedicated healer is alive, non-healers should NOT spend MP on revive spells (they can use items instead)
+                if not isDedicatedHealer and dedicatedHealerAlive and not allowOne then
+                    return nil
+                end
                 local downN = #Fight.downNow
                 if (downN < 1) and dead then downN = 1 end
                 local s, partyHit = nil, false
@@ -2943,9 +2998,11 @@ local function turn(uid, skills, w, phase)
                 if not choice then return nil end
                 local at = #(Fight.actions or {})
                 Fight.claim.revive[dead.id] = at
+                Fight.claim.heal[dead.id] = nil -- Clear heal lock so healer can immediately top them off!
                 if many then
                     for _, ally in ipairs(Fight.downNow) do
                         Fight.claim.revive[ally.id] = at
+                        Fight.claim.heal[ally.id] = nil
                     end
                 end
                 return choice
@@ -2953,7 +3010,11 @@ local function turn(uid, skills, w, phase)
             local choice = raiseFallen(false)
             if choice then return choice end
             local item = pickRecoveryItem(uid, w, "revive")
-            if item then Fight.claim.revive[dead.id] = #(Fight.actions or {}) return item end
+            if item then
+                Fight.claim.revive[dead.id] = #(Fight.actions or {})
+                Fight.claim.heal[dead.id] = nil
+                return item
+            end
             choice = raiseFallen(true)
             if choice then return choice end
         end

@@ -97,16 +97,28 @@ end
 -- Which raise to spend. The second return is true when it raises the party.
 -- One fallen ally keeps a single raise. The party row is the last resort
 -- for that one body, and only when allowOne is set.
+-- MATHEMATICALLY PRIORITIZES ARISE (100% Full HP Revive) OVER RAISE (10% HP Revive)!
 function M.bestRaise(skills, downN, pay, allowOne)
-    local party, single = nil, nil
+    local party, single, bestSingleScore = nil, nil, -1
     for _, s in ipairs(skills or {}) do
         local payable = true
         if pay then payable = pay(s) and true or false end
         if (s.kind == "revive") and payable then
+            local n = (s.name or ""):lower()
+            local score = 10
+            if n:find("arise") or n:find("full raise") or n:find("radiance") or n:find("reraise") then
+                score = 50 -- 100% Full HP Revive (Top Priority)
+            elseif n:find("raise") or n:find("revive") or n:find("phoenix") then
+                score = 20 -- Standard 10-20% HP Revive
+            end
             if s.known and s.known.party then
-                if not party then party = s end
-            elseif not single then
+                if not party or score > (party.reviveScore or 0) then
+                    party = s
+                    party.reviveScore = score
+                end
+            elseif not single or score > bestSingleScore then
                 single = s
+                bestSingleScore = score
             end
         end
     end

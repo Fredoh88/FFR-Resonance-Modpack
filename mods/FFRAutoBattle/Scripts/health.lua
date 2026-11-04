@@ -229,10 +229,12 @@ function M.healerWaiting(actorId, why, ratio, danger, allies, kitOf, mpOf)
         if pays(a) then payable = true end
     end
     if not payable then return false end
+    -- If critically injured (< 35% HP, freshly revived), self-preservation takes immediate priority!
+    -- Never wait for a healer if you are in 1-hit kill range (< 35% HP) or danger
+    local r = ratio or 1
+    if r < 0.35 then return false end
+    if danger and r < 0.45 then return false end
     if why ~= "critical" then return true end
-    local dire = 0.15
-    if danger then dire = 0.20 end
-    if (ratio or 1) < dire then return false end
     return true
 end
 
