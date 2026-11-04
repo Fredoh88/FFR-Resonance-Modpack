@@ -965,18 +965,27 @@ local function roleMasteryBonus(uid, skill, w)
     local sKind = skill.kind or ""
     local bonus = 0
 
-    -- 1. Rain (The Sentinel Vanguard Tank) - Mathematically Optimized Break Vanguard
+    -- 1. Rain (The Sentinel Vanguard Tank) - Situational Break Vanguard & Threat Mitigator
     if who:find("rain") or who:find("cecil") or who:find("wilhelm") or who:find("charlotte") or who:find("snow") or who:find("basch") then
+        local bossCharging = false
+        local anyBroken = false
+        if w and w.enemies then
+            for _, e in ipairs(w.enemies) do
+                local c = mobOf(e)
+                if c and c.danger and c.danger[1] and not e.broken then bossCharging = true end
+                if e.broken or (Fight and Fight.down and Fight.down[e.id]) then anyBroken = true end
+            end
+        end
+
         if sName:find("infinity drive") or sName:find("crimson onslaught") then
-            bonus = bonus + 12000 -- Limit Burst Pinnacle Execution
+            bonus = bonus + (anyBroken and 18000 or 12000) -- Maximum damage during 2.0x break window!
         elseif sName:find("firaga blade") or sName:find("firaja blade") or sName:find("blazing") or sName:find("fire blade") then
-            bonus = bonus + 10500 -- Top Elemental Break & High Magnification
+            bonus = bonus + (bossCharging and 16000 or 10500) -- Rapid elemental break interrupt!
         elseif sName:find("tackle") or sName:find("counter") or sName:find("arms akimbo") or sName:find("heavy strike") then
-            bonus = bonus + 9000  -- High Stagger Buildup
+            bonus = bonus + (anyBroken and 2000 or 9000)      -- Deprioritize weak stagger moves when already broken
         elseif sName:find("phalanx") or sName:find("iron wall") or sName:find("royal guard") or sName:find("sentinel") then
-            bonus = bonus + 7000  -- Damage Mitigation
+            bonus = bonus + (bossCharging and 17000 or 7000)  -- Prioritize defensive barriers when boss charges danger moves!
         elseif sName:find("provoke") or sName:find("taunt") or sName:find("roar") or sKind == "provoke" or sKind == "cover" then
-            -- Provoke only gets priority if an ally is low on HP (< 50%)
             local partyHurt = false
             if w and w.allies then
                 for _, a in ipairs(w.allies) do
@@ -986,14 +995,24 @@ local function roleMasteryBonus(uid, skill, w)
             bonus = bonus + (partyHurt and 8500 or 1000)
         end
 
-    -- 2. Lasswell (Breaker & Critical Boss Finisher)
+    -- 2. Lasswell (Breaker & Critical Boss Finisher) - Situational Critical Execution
     elseif who:find("lasswell") or who:find("cloud") or who:find("sephiroth") or who:find("squall") or who:find("tidus") then
-        if sName:find("null moon") or sName:find("exorcising") then
-            bonus = bonus + 9500 -- Guaranteed Critical Boss Execution
-        elseif sName:find("dawn frost") or sName:find("blizzaga blade") or sName:find("cross%-slash") or sName:find("blade torrent") or sName:find("splitter") then
-            bonus = bonus + 8000 -- Stagger 27 & Elemental Break
+        local anyBroken = false
+        local bossCharging = false
+        if w and w.enemies then
+            for _, e in ipairs(w.enemies) do
+                local c = mobOf(e)
+                if c and c.danger and c.danger[1] and not e.broken then bossCharging = true end
+                if e.broken or (Fight and Fight.down and Fight.down[e.id]) then anyBroken = true end
+            end
+        end
+
+        if sName:find("null moon") or sName:find("exorcising") or sName:find("cross%-slash") then
+            bonus = bonus + (anyBroken and 22000 or 9500) -- Devastating critical hit during Stagger!
+        elseif sName:find("dawn frost") or sName:find("blizzaga blade") or sName:find("tranquility") or sName:find("blade torrent") or sName:find("splitter") then
+            bonus = bonus + (bossCharging and 18000 or (anyBroken and 12000 or 8500)) -- Emergency break interrupt
         elseif sName:find("barrage") or sName:find("transient rite") or sName:find("scan & strike") or sName:find("strike") or sName:find("slash") then
-            bonus = bonus + 7500
+            bonus = bonus + (anyBroken and 11000 or 7500)
         end
 
     -- 3. Fina (Divine Luminary & Healer) - Dynamic Heals & Full Revives
@@ -3125,6 +3144,21 @@ local function turn(uid, skills, w, phase)
         return nil
     end
 
+    -- Proactive Healer & Support Mana Reserve:
+    -- Never let the primary healer run dry (< 40 MP) where they would fail to cast Curaja/Curaga!
+    local whoActor = unitName(uid):lower()
+    local isCasterHealer = whoActor:find("fina") or whoActor:find("ayaka") or whoActor:find("folka") or whoActor:find("aerith")
+    local curActorMp = stat(uid, PARAM.MP, false) or 0
+    if isCasterHealer and curActorMp < 40 and not Fight.claim.ether[uid] and not Fight.claim.etherRound then
+        local ether = pickRecoveryItem(uid, w, "mp")
+        if ether then
+            ether.reason = "proactive healer mana reserve"
+            Fight.claim.ether[uid] = true
+            Fight.claim.etherRound = true
+            return ether
+        end
+    end
+
     local crit = allyCritical()
     local function deferHeal()
         if phase == PHASE_BONUS then return false end
@@ -3541,16 +3575,31 @@ local function turn(uid, skills, w, phase)
             if finishes and not cashing and not early then score = score + 8000 - (s.cost or 0) * 20 end
             if finishes and not cashing and early then score = score - 8000 end
             if handOf(s, targets[1]) < 0.5 then score = score - 2000 end
+            -- Fully Situational Threat & State Scoring:
             local threat = 0
             for _, u in ipairs(targets) do
                 local card = mobOf(u)
-                if card and card.danger and card.danger[1] then threat = 200 end
-                if card and card.call and threat < 100 then threat = 100 end
+                -- 1. Boss Danger Move Threat: Massive focus fire to shatter break gauge and interrupt!
+                if card and card.danger and card.danger[1] then
+                    local _, remain, empty = gaugeOfEnemy(u)
+                    if not empty and not u.broken then
+                        threat = threat + 20000 -- URGENT: Break and interrupt boss danger attack!
+                    end
+                end
+                if card and card.call and threat < 100 then threat = threat + 2000 end
+
+                -- 2. Kill Confirmation: Finish off critically wounded foes (< 20% HP) to eliminate hostile turns
                 local r = hpRatio(u.id)
                 if r and r > 0 then
-                    if r <= 0.15 then score = score + 12000
-                    elseif r <= 0.25 then score = score + 7000
+                    if r <= 0.15 then score = score + 16000
+                    elseif r <= 0.30 then score = score + 9000
                     end
+                end
+
+                -- 3. Stagger Punish Window (2.0x - 3.0x Damage Amplification):
+                -- When a foe is broken/staggered, heavily prioritize maximum damage output!
+                if u.broken or (Fight.down and Fight.down[u.id]) then
+                    score = score + 24000
                 end
             end
             score = score + threat

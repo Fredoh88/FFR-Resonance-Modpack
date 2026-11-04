@@ -17,16 +17,17 @@ local LOCK = {
 -- Shop cures and the lock they clear. Poison and blind are not locks, so
 -- those items never qualify. Remedy clears any lock. A name that is not
 -- here still qualifies, so a new shop cure is not dropped.
+-- Combat status cures: Cleanses crippling debuffs immediately (Blind, Silence, Poison, Sleep, Confusion)
 local CURE_ITEM = {
-    antidote = false,
-    ["antidote herb"] = false,
-    ["eye drops"] = false,
-    ["echo herb"] = { [SILENCE] = true },
+    antidote = { [9] = true },
+    ["antidote herb"] = { [9] = true },
+    ["eye drops"] = { [8] = true },              -- Cleanses Blind on physical strikers (Lasswell/Rain)
+    ["echo herb"] = { [SILENCE] = true },         -- Cleanses Silence on casters (Fina/Sakura)
     ["smelling salts"] = { [6] = true },
-    ["unicorn horn"] = { [5] = true },
-    ["gold needle"] = { [7] = true },
+    ["unicorn horn"] = true,                     -- Universal party status cleanse
+    ["gold needle"] = { [7] = true },             -- Cleanses Petrify countdown
     ["herb of awakening"] = { [SLEEP] = true },
-    remedy = true,
+    remedy = true,                               -- Universal single status cleanse
 }
 
 local M = {}
