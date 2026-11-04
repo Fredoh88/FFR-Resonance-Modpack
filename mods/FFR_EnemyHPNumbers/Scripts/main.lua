@@ -54,7 +54,9 @@ local CONFIG = {
     BAR_H         = 4,           -- HP bar fill height (WBP_Btl_PointGauge SizeBox)
     FRAME         = 3,           -- frame padding around the fill (WBP_ProgressBG)
 
-    COLOR_HP      = { R = 1.00, G = 1.00, B = 1.00, A = 1.00 },
+    COLOR_HP      = { R = 0.25, G = 1.00, B = 0.55, A = 1.00 },  -- Emerald Green matching party HUD
+    COLOR_CAUTION = { R = 1.00, G = 0.82, B = 0.22, A = 1.00 },  -- Caution Amber matching party HUD
+    COLOR_DANGER  = { R = 1.00, G = 0.22, B = 0.22, A = 1.00 },  -- Danger Ruby Red matching party HUD
     COLOR_BREAK   = { R = 1.00, G = 0.74, B = 0.25, A = 1.00 },  -- break bar colour
     SHADOW        = { R = 0.00, G = 0.00, B = 0.00, A = 0.90 },
 
@@ -709,8 +711,10 @@ local function update(e, pv)
         local hpColor = CONFIG.COLOR_HP
         local suffix = ""
         if hpPct <= 25 and hpPct > 0 then
-            hpColor = { R = 1.0, G = 0.85, B = 0.3, A = 1.0 }
+            hpColor = CONFIG.COLOR_DANGER or { R = 1.0, G = 0.22, B = 0.22, A = 1.0 }
             suffix = "  EXECUTE"
+        elseif hpPct <= 50 then
+            hpColor = CONFIG.COLOR_CAUTION or { R = 1.0, G = 0.82, B = 0.22, A = 1.0 }
         end
         local hpTxt = ""
         if hp and hpMax then
@@ -729,12 +733,14 @@ local function update(e, pv)
         end
     else
         if brk and brk <= 0 and (brkMax and brkMax > 0) then
-            setText(e, "brkStr", e.brk, "STAGGERED x2 damage" .. brkExtra, CONFIG.COLOR_BREAK_ON)
+            setText(e, "brkStr", e.brk, "STAGGERED! x2.0 DMG" .. brkExtra, CONFIG.COLOR_BREAK_ON)
         else
             setText(e, "brkStr", e.brk, (brk and brkMax) and string.format("Break %s/%s%s", fmtNum(brk), fmtNum(brkMax), brkExtra) or "", CONFIG.COLOR_BREAK)
         end
     end
-endlocal function isRuntimeEnemyUI(o)
+end
+
+local function isRuntimeEnemyUI(o)
     -- Runtime instances are named WBP_Btl_EnemyUI_C_<n>. Class templates and
     -- the CDO are not, and must never be modified.
     return valid(o) and objName(o):match("^WBP_Btl_EnemyUI_C_%d+$") ~= nil

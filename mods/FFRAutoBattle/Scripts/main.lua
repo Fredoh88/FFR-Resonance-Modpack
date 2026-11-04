@@ -2974,11 +2974,13 @@ local function turn(uid, skills, w, phase)
     local isDedicatedHealer = whoStr:find("fina") or whoStr:find("ayaka") or whoStr:find("folka")
         or whoStr:find("garnet") or whoStr:find("aerith") or whoStr:find("rosa") or whoStr:find("lenna")
     local dedicatedHealerAlive = false
+    local dedicatedHealerMp = 0
     for _, a in ipairs(w.allies) do
         if not a.dead and a.id ~= uid then
             local an = a.name:lower()
             if an:find("fina") or an:find("ayaka") or an:find("folka") or an:find("garnet") or an:find("aerith") or an:find("rosa") or an:find("lenna") then
                 dedicatedHealerAlive = true
+                dedicatedHealerMp = stat(a.id, PARAM.MP, false) or 0
                 break
             end
         end
@@ -3028,11 +3030,15 @@ local function turn(uid, skills, w, phase)
             end
             local choice = raiseFallen(false)
             if choice then return choice end
-            local item = pickRecoveryItem(uid, w, "revive")
-            if item then
-                Fight.claim.revive[dead.id] = #(Fight.actions or {})
-                Fight.claim.heal[dead.id] = nil
-                return item
+            -- Strict Role Discipline: DPS units NEVER burn revive items if dedicated healer is alive with MP!
+            local canUseReviveItem = isDedicatedHealer or (not dedicatedHealerAlive) or (dedicatedHealerMp < 20)
+            if canUseReviveItem then
+                local item = pickRecoveryItem(uid, w, "revive")
+                if item then
+                    Fight.claim.revive[dead.id] = #(Fight.actions or {})
+                    Fight.claim.heal[dead.id] = nil
+                    return item
+                end
             end
             choice = raiseFallen(true)
             if choice then return choice end
@@ -3103,7 +3109,9 @@ local function turn(uid, skills, w, phase)
             end
         end
         local itemLine = itemAt or 0.45
-        if (not skill) and ((hurt.hp or 1) < itemLine) then
+        -- Strict Role Discipline: DPS units NEVER burn potions on allies if dedicated healer is alive with MP!
+        local canUseHealItem = isDedicatedHealer or (not dedicatedHealerAlive) or (dedicatedHealerMp < 20) or (hurt.id == uid and (hurt.hp or 1) < 0.25)
+        if (not skill) and ((hurt.hp or 1) < itemLine) and canUseHealItem then
             local item = pickRecoveryItem(uid, w, "heal")
             if item then Fight.claim.heal[hurt.id] = true return item end
         end
@@ -4338,6 +4346,42 @@ local function turn(uid, skills, w, phase)
     if Fight.chipped and (phase == 0) and (not allyCritical()) and (not dead) then
         local again = castDebuff(true)
         if again then return again end
+    end
+
+    -- Dedicated Healer & Support Party Buff Routine:
+    -- When party is safe (>= 70% HP), dedicated healers (Fina) and buffers must BUFF the party
+    -- (Cheer, Protect, Shell, Haste, Regen, Barrier) instead of wasting turns on basic physical attacks!
+    if isDedicatedHealer or whoStr:find("nichol") then
+        local partyHurtCount = 0
+        for _, a in ipairs(w.allies) do
+            if not a.dead and (a.hp or 1) < 0.70 then
+                partyHurtCount = partyHurtCount + 1
+            end
+        end
+        if partyHurtCount == 0 and not Fight.claim.buffTurn then
+            Fight.buffCooldown = Fight.buffCooldown or {}
+            for _, s in ipairs(skills) do
+                local sName = (s.name or ""):lower()
+                local sUse = useOf(s)
+                local isBuff = (s.kind == "buff") or (sUse == "buff") or (sUse == "guardbuff")
+                    or sName:find("cheer") or sName:find("protect") or sName:find("shell")
+                    or sName:find("haste") or sName:find("regen") or sName:find("barrier")
+                if isBuff and pay(s) then
+                    local lastCast = Fight.buffCooldown[sName] or -99
+                    local currentRound = #(Fight.actions or {})
+                    if (currentRound - lastCast) >= 3 then
+                        local spread = partyOf(s) or (s.known and s.known.party)
+                        local targets = spread and idsOf(w.allies) or { uid }
+                        local choice = finishChoice(uid, s, string.format("support buff %s", s.name or "buff"), targets, spread)
+                        if choice then
+                            Fight.buffCooldown[sName] = currentRound
+                            Fight.claim.buffTurn = true
+                            return choice
+                        end
+                    end
+                end
+            end
+        end
     end
 
     local chip = castDamage(#pool > 0 and pool or open, false, mode)
