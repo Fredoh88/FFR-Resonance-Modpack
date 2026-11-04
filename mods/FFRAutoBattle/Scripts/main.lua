@@ -965,18 +965,25 @@ local function roleMasteryBonus(uid, skill, w)
     local sKind = skill.kind or ""
     local bonus = 0
 
-    -- 1. Rain (The Sentinel Vanguard Tank)
+    -- 1. Rain (The Sentinel Vanguard Tank) - Mathematically Optimized Break Vanguard
     if who:find("rain") or who:find("cecil") or who:find("wilhelm") or who:find("charlotte") or who:find("snow") or who:find("basch") then
-        if sName:find("provoke") or sName:find("cover") or sName:find("sentinel") or sName:find("taunt")
-           or sKind == "provoke" or sKind == "cover" then
-            bonus = bonus + 9500 -- BiS Sentinel Aggro & Team Guard
-        elseif sName:find("phalanx") or sName:find("iron wall") or sName:find("royal guard") or sName:find("shield wall")
-           or sName:find("defend") or sName:find("guard") or sName:find("barrier") or sName:find("protect") or sKind == "defend" or sKind == "guard" then
-            bonus = bonus + 7000 -- Sentinel Damage Reduction & Barrier Stance
-        elseif sName:find("tackle") or sName:find("counter") or sName:find("arms akimbo") or sName:find("firaga blade") then
-            bonus = bonus + 5500 -- Stagger buildup & Counter Stagger
-        elseif sName:find("infinity drive") or sName:find("crimson onslaught") then
-            bonus = bonus + 9000
+        if sName:find("infinity drive") or sName:find("crimson onslaught") then
+            bonus = bonus + 12000 -- Limit Burst Pinnacle Execution
+        elseif sName:find("firaga blade") or sName:find("firaja blade") or sName:find("blazing") or sName:find("fire blade") then
+            bonus = bonus + 10500 -- Top Elemental Break & High Magnification
+        elseif sName:find("tackle") or sName:find("counter") or sName:find("arms akimbo") or sName:find("heavy strike") then
+            bonus = bonus + 9000  -- High Stagger Buildup
+        elseif sName:find("phalanx") or sName:find("iron wall") or sName:find("royal guard") or sName:find("sentinel") then
+            bonus = bonus + 7000  -- Damage Mitigation
+        elseif sName:find("provoke") or sName:find("taunt") or sName:find("roar") or sKind == "provoke" or sKind == "cover" then
+            -- Provoke only gets priority if an ally is low on HP (< 50%)
+            local partyHurt = false
+            if w and w.allies then
+                for _, a in ipairs(w.allies) do
+                    if not a.dead and (a.hp or 1) < 0.50 then partyHurt = true break end
+                end
+            end
+            bonus = bonus + (partyHurt and 8500 or 1000)
         end
 
     -- 2. Lasswell (Breaker & Critical Boss Finisher)
@@ -3690,12 +3697,66 @@ local function turn(uid, skills, w, phase)
     end
 
     local myHpRatio = hpRatio(uid) or 1
-    local actionsSinceProvoke = #(Fight.actions or {}) - (Fight.lastProvokeAction or -99)
-    local needProvoke = isDesignatedTank and myHpRatio >= 0.35 and (
-        (not Fight.claim.provoke)
-        or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 3)
-        or (actionsSinceProvoke >= 8)
-    )
+    local isBoss = w.boss or hardField or (#w.enemies == 1)
+
+    -- Dynamic Party Health Assessment
+    local allyInDanger = false
+    local lowestAllyHp = 1.0
+    for _, a in ipairs(w.allies) do
+        if a.id ~= uid and not a.dead then
+            local r = hpRatio(a.id)
+            if r and r < lowestAllyHp then lowestAllyHp = r end
+            if r and r < 0.50 then allyInDanger = true end
+        end
+    end
+
+    -- Are enemies staggered / stunned? (Staggered foes deal 0 damage and take 2.0x bonus damage!)
+    local allEnemiesStaggered = true
+    local anyEnemyActive = false
+    for _, e in ipairs(w.enemies) do
+        if not e.broken and not (Fight.down and Fight.down[e.id]) then
+            allEnemiesStaggered = false
+            anyEnemyActive = true
+            break
+        end
+    end
+
+    -- Can Rain break, exploit a 3.0x weakness, or kill an enemy right now?
+    local hasBreakKill = false
+    for _, s in ipairs(skills) do
+        if pay(s) and isHit(s, false) then
+            for _, u in ipairs(w.enemies) do
+                local gained, f = staggerOf(s, u)
+                local _, remain, empty = gaugeOfEnemy(u)
+                if (f >= 3) or (not empty and gained >= remain) then
+                    hasBreakKill = true
+                    break
+                end
+            end
+        end
+        if hasBreakKill then break end
+    end
+
+    -- Strict Mathematical Provoke Conditions:
+    -- 1. NEVER provoke if enemies are staggered (they cannot attack!).
+    -- 2. NEVER provoke if Rain can exploit an elemental weakness or shatter a break gauge (breaking is 100% mitigation + 2.0x team DPS).
+    -- 3. On Bosses: NEVER provoke unless an ally is in mortal danger (< 40% HP) and boss is active.
+    -- 4. On Swarms (2+ enemies): Only provoke if allies are wounded (< 60% HP) and Rain is healthy (> 50% HP).
+    local needProvoke = false
+    if isDesignatedTank and anyEnemyActive and not allEnemiesStaggered and not hasBreakKill and myHpRatio >= 0.50 then
+        if isBoss then
+            -- On Bosses: only provoke if an ally is in mortal danger (< 40% HP)
+            needProvoke = allyInDanger and lowestAllyHp < 0.40 and not Fight.claim.provoke
+        else
+            -- On mob swarms: provoke only if allies are taking heat (< 60% HP) and not provoked recently
+            local actionsSinceProvoke = #(Fight.actions or {}) - (Fight.lastProvokeAction or -99)
+            needProvoke = (lowestAllyHp < 0.60) and (
+                (not Fight.claim.provoke)
+                or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 4)
+                or (actionsSinceProvoke >= 10)
+            )
+        end
+    end
 
     -- If tank is critically wounded (< 35% HP), prioritize self-preservation (Sentinel / Defend / Potion)
     if isDesignatedTank and myHpRatio < 0.35 and phase == 0 and not dead then
@@ -3710,15 +3771,13 @@ local function turn(uid, skills, w, phase)
     end
 
     if needProvoke and phase == 0 and not dead then
-        -- 1. Prioritize actual Provoke / Taunt / Roar to hold hostile enemy aggro!
         local provokeSkill = firstSkill(function(s)
             local n = s.name and s.name:lower() or ""
             local u = useOf(s) or (s.known and s.known.use) or ""
             return (n:find("provoke") or n:find("taunt") or n:find("roar") or u == "provoke" or s.kind == "provoke")
                 and (not n:find("cover")) and pay(s)
         end)
-        -- 2. If no Provoke or already provoked, use Multi-Cover / Cover (if healthy >= 40% HP)
-        if not provokeSkill and myHpRatio >= 0.40 then
+        if not provokeSkill and myHpRatio >= 0.50 then
             provokeSkill = firstSkill(function(s)
                 local n = s.name and s.name:lower() or ""
                 return (n:find("multi%-cover") or n:find("multi cover") or n:find("cover") or n:find("sentinel")) and pay(s)
@@ -3729,7 +3788,7 @@ local function turn(uid, skills, w, phase)
             local isAlly = friendAction(provokeSkill) or (provokeSkill.rel == REL.FRIEND) or (provokeSkill.target == TGT.FRIEND) or (provokeSkill.target == TGT.SELF) or (sName:find("cover") ~= nil) or (sName:find("sentinel") ~= nil)
             local spread = aoeOf(provokeSkill) or partyOf(provokeSkill) or (sName:find("multi%-cover") ~= nil) or (sName:find("multi cover") ~= nil)
             local tids = nil
-            local reason = "provoke aggro"
+            local reason = "tactical aggro"
             if isAlly then
                 reason = "guard party"
                 tids = spread and idsOf(w.allies) or { uid }
