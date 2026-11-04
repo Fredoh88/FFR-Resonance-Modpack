@@ -2,50 +2,39 @@
         FINAL FANTASY RESONANCE - MATHEMATICAL GEAR & TALENT ADVISOR           
 ================================================================================
 
-[Rain] Role: Phys Breaker
-  - Total Equipped Skills: 25 (Phys: 5, Mag: 4, Support: 0)
-  - Elements Covered: fire, ice, water
-  - Best Stagger Skill: Crimson Onslaught (Stagger Power: 35)
-  - Best Burst Skill: Soul of Valiance (Raw Power: 53)
-  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
-      * Replace Fire -> Firaga (0 AP)
-      * Replace Blizzard -> Blizzaga (0 AP)
-      * Replace Water -> Waterga (0 AP)
+[Rain] Role: Hybrid
+  - Total Equipped Skills: 25 (Phys: 0, Mag: 0, Support: 0)
+  - Elements Covered: Neutral
+  - Best Stagger Skill: <MISSING STRING TABLE ENTRY> (Stagger Power: 35)
+  - Best Burst Skill: <MISSING STRING TABLE ENTRY> (Raw Power: 53)
 
-[Lasswell] Role: Phys Breaker
-  - Total Equipped Skills: 31 (Phys: 4, Mag: 3, Support: 3)
-  - Elements Covered: earth, ice, light, thunder
-  - Best Stagger Skill: Cura (Stagger Power: 55)
-  - Best Burst Skill: Cura (Raw Power: 500)
-  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
-      * Replace Cure -> Curaja (0 AP)
-      * Replace Cura -> Curaja (0 AP)
-      * Replace Blizzard -> Blizzaga (0 AP)
+[Lasswell] Role: Hybrid
+  - Total Equipped Skills: 22 (Phys: 0, Mag: 0, Support: 0)
+  - Elements Covered: Neutral
+  - Best Stagger Skill: <MISSING STRING TABLE ENTRY> (Stagger Power: 40)
+  - Best Burst Skill: <MISSING STRING TABLE ENTRY> (Raw Power: 35)
 
-[Fina] Role: Healer
-  - Total Equipped Skills: 37 (Phys: 3, Mag: 0, Support: 6)
-  - Elements Covered: light, thunder, water
-  - Best Stagger Skill: Cura (Stagger Power: 55)
-  - Best Burst Skill: Cura (Raw Power: 500)
-  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
-      * Replace Cure -> Curaja (0 AP)
-      * Replace Cura -> Curaja (0 AP)
+[Fina] Role: Hybrid
+  - Total Equipped Skills: 32 (Phys: 0, Mag: 0, Support: 0)
+  - Elements Covered: Neutral
+  - Best Stagger Skill: <MISSING STRING TABLE ENTRY> (Stagger Power: 55)
+  - Best Burst Skill: <MISSING STRING TABLE ENTRY> (Raw Power: 500)
 
-[Lid] Role: Phys Breaker
-  - Total Equipped Skills: 21 (Phys: 5, Mag: 0, Support: 0)
-  - Elements Covered: earth, water, wind
-  - Best Stagger Skill: March of the Machines (Stagger Power: 40)
-  - Best Burst Skill: Meo Twister (Raw Power: 42)
+[Lid] Role: Hybrid
+  - Total Equipped Skills: 31 (Phys: 0, Mag: 0, Support: 0)
+  - Elements Covered: Neutral
+  - Best Stagger Skill: <MISSING STRING TABLE ENTRY> (Stagger Power: 60)
+  - Best Burst Skill: <MISSING STRING TABLE ENTRY> (Raw Power: 1500)
 
 --------------------------------------------------------------------------------
                       PARTY ELEMENTAL & BREAK EFFICIENCY                        
 --------------------------------------------------------------------------------
-Elemental Coverage: 6/7 (85%)
-  Covered: fire, ice, thunder, wind, water, light
-  Missing: dark
+Elemental Coverage: 0/7 (0%)
+  Covered: None
+  Missing: fire, ice, thunder, wind, water, light, dark
 
 MATHEMATICAL PRINCIPLE:
   Hitting an elemental weakness gives +200% Break (3.0x multiplier) and bypasses armor.
-  Recommendation: Slot abilities covering dark across your party
+  Recommendation: Slot abilities covering fire, ice, thunder, wind, water, light, dark across your party
   to ensure guaranteed 3.0x Stagger against all mob types (Beasts, Mechs, Undead).
 ================================================================================

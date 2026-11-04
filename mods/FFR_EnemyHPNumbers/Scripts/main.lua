@@ -552,6 +552,22 @@ local function loadMobs()
     return MobsTable
 end
 
+local function safeText(v)
+    if v == nil then return nil end
+    local s = nil
+    if type(v) == "string" then
+        s = v
+    elseif type(v) == "userdata" then
+        local ok, res = pcall(function() return v:ToString() end)
+        if ok and type(res) == "string" then s = res end
+    end
+    if not s or s == "" or s:find("MISSING STRING TABLE ENTRY") then
+        return nil
+    end
+    s = s:gsub("^%s+", ""):gsub("%s+$", "")
+    return (s ~= "") and s or nil
+end
+
 local function enemyInfoOf(e)
     if e.unitName and e.unitLevel then return e.unitName, e.unitLevel end
     local vm = viewModel(e)
@@ -561,16 +577,19 @@ local function enemyInfoOf(e)
 
     if valid(p) then
         if not name then
-            local ok, n = pcall(function() return p:GetDuplicationUnitName():ToString() end)
-            if ok and type(n) == "string" and n ~= "" then
-                name = n
-            else
-                local ok2, n2 = pcall(function() return p:GetUnitName():ToString() end)
-                if ok2 and type(n2) == "string" and n2 ~= "" then
-                    name = n2
-                end
+            local ok1, n1 = pcall(function() return p:GetDuplicationUnitName() end)
+            name = ok1 and safeText(n1) or nil
+            if not name then
+                local ok2, n2 = pcall(function() return p:GetUnitName() end)
+                name = ok2 and safeText(n2) or nil
             end
-            e.unitName = name
+            if not name then
+                local ok3, n3 = pcall(function() return p.m_UnitName or p.UnitName end)
+                name = ok3 and safeText(n3) or nil
+            end
+            if name then
+                e.unitName = name
+            end
         end
 
         if not level then
@@ -583,7 +602,9 @@ local function enemyInfoOf(e)
                     level = lvl2
                 end
             end
-            e.unitLevel = level
+            if level then
+                e.unitLevel = level
+            end
         end
     end
     return name, level

@@ -374,10 +374,15 @@ local function num(v)
 end
 
 local function textOf(v)
-    if type(v) == "string" then return v end
+    if type(v) == "string" then
+        if v:find("MISSING STRING TABLE ENTRY") then return nil end
+        return v
+    end
     if type(v) == "userdata" then
         local ok, s = pcall(function() return v:ToString() end)
-        if ok and type(s) == "string" and s ~= "" then return s end
+        if ok and type(s) == "string" and s ~= "" and not s:find("MISSING STRING TABLE ENTRY") then
+            return s
+        end
     end
     return nil
 end
@@ -440,7 +445,7 @@ end
 local SkillIdx = nil
 local ItemIdx = nil
 local function buildSkillIndex()
-    if SkillIdx then return end
+    if SkillIdx and SkillIdx._namedCount and SkillIdx._namedCount > 100 then return end
     local effects = {}
     local skills = {}
     local tables = FindAllOf("DataTable") or {}
@@ -468,7 +473,7 @@ local function buildSkillIndex()
     end
     for _, dt in ipairs(skillTables) do
         pcall(function()
-            dt:ForEachRow(function(_, row)
+            dt:ForEachRow(function(rowName, row)
                 local id = num(field(row, "ID"))
                 if not id then return end
                 local friendStatus, enemyStatus = {}, {}
@@ -490,6 +495,18 @@ local function buildSkillIndex()
                 if own > 0 and rel == REL.FRIEND then friendStatus[own] = true end
                 if own > 0 and rel == REL.ENEMY then enemyStatus[own] = true end
                 local name = textOf(field(row, "Name"))
+                if not name or name == "" then
+                    local okR, rn = pcall(function() return rowName:ToString() end)
+                    if okR and type(rn) == "string" and rn ~= "" and not rn:find("MISSING STRING TABLE ENTRY") then
+                        if not rn:match("^%d+$") then name = rn end
+                    end
+                end
+                if not name or name == "" then
+                    local comm = textOf(field(row, "Comment"))
+                    if comm and comm ~= "" and not comm:find("MISSING STRING TABLE ENTRY") then
+                        name = comm
+                    end
+                end
                 skills[id] = {
                     id = id,
                     name = (name and name ~= "") and name or ("#" .. id),
@@ -511,19 +528,31 @@ local function buildSkillIndex()
             end)
         end)
     end
-    local n = 0
-    for _ in pairs(skills) do n = n + 1 end
-    if n > 0 then
+    local n, validNamed = 0, 0
+    for _, s in pairs(skills) do
+        n = n + 1
+        if s.name and not s.name:find("^#") and not s.name:find("MISSING STRING TABLE ENTRY") then
+            validNamed = validNamed + 1
+        end
+    end
+    if n > 0 and validNamed > (n * 0.25) then
+        skills._namedCount = validNamed
         SkillIdx = skills
-        log("skill table: %d rows", n)
+        log("skill table: %d rows (%d named skills indexed)", n, validNamed)
     end
     local items = {}
     for _, dt in ipairs(itemTables) do
         pcall(function()
-            dt:ForEachRow(function(_, row)
+            dt:ForEachRow(function(rowName, row)
                 local id = num(field(row, "ID"))
                 if not id then return end
                 local name = textOf(field(row, "Name"))
+                if not name or name == "" then
+                    local okR, rn = pcall(function() return rowName:ToString() end)
+                    if okR and type(rn) == "string" and rn ~= "" and not rn:find("MISSING STRING TABLE ENTRY") then
+                        if not rn:match("^%d+$") then name = rn end
+                    end
+                end
                 local skillId = nil
                 for _, key in ipairs({ "SkillId", "skillId", "SkillID", "UseSkillId", "EffectSkillId" }) do
                     skillId = num(field(row, key))
@@ -539,11 +568,16 @@ local function buildSkillIndex()
             end)
         end)
     end
-    local ni = 0
-    for _ in pairs(items) do ni = ni + 1 end
-    if ni > 0 then
+    local ni, validItemNames = 0, 0
+    for _, item in pairs(items) do
+        ni = ni + 1
+        if item.name and not item.name:find("^item %d+") and not item.name:find("MISSING STRING TABLE ENTRY") then
+            validItemNames = validItemNames + 1
+        end
+    end
+    if ni > 0 and validItemNames > (ni * 0.25) then
         ItemIdx = items
-        log("item table: %d rows", ni)
+        log("item table: %d rows (%d named items indexed)", ni, validItemNames)
     end
 end
 
@@ -1979,6 +2013,10 @@ local function learn(v)
 end
 
 local function send(uid, choice, phase)
+    if phase == PHASE_FINISH or inFinishPhase() then
+        log("SAFETY GUARD: Refusing to dispatch Delegate.Battle.Cmd.Decide during Resonance/Finish phase (prevents stack overflow crash)")
+        return false
+    end
     local learned = (not choice.isItem) and Template[choice.id] or nil
     local cmdType = phase
     local commandId = choice.id
@@ -4641,8 +4679,9 @@ local function act(serial)
     end
     local finishing = false
     pcall(function() finishing = inFinishPhase() end)
-    if finishing and choice.attr ~= ATTR.FINISH then
-        log("%s: finish phase, leaving %s off the wheel", unitName(uid), choice.name)
+    if finishing then
+        -- During FinishPhase, normal command submission must NEVER run!
+        -- Resonance is handled exclusively by resonanceWatch using native CPP_VM_BtlCmd:DecideActionKey
         return
     end
     if not Menu.open or Menu.serial ~= serial then return end
@@ -5498,21 +5537,41 @@ local function resonanceWatch()
         end
         return
     end
-    local ok, sent = pcall(send, bestUid, bestChoice, PHASE_FINISH)
-    if not ok or not sent then
-        log("resonance send failed: %s", tostring(sent))
-        return
-    end
-    Fight.resonanceSent = true
-    Fight.resonanceSentTime = os.clock and os.clock() or 0
     local who = unitName(bestUid)
-    local line = string.format("resonance %s by %s -> %s", bestChoice.name, who, bestChoice.reason)
+    local cleanReason = bestChoice.reason and bestChoice.reason:gsub("^resonance ", "") or ""
+    local line = string.format("resonance %s by %s -> %s", bestChoice.name, who, cleanReason)
     log("%s", line)
     appendLog("  " .. line)
     if Hud and Hud.toast then
-        local cleanReason = bestChoice.reason:gsub("^resonance ", "")
         Hud.toast(string.format("[RESONANCE] %s: %s (%s)", who, bestChoice.name, cleanReason))
     end
+
+    -- Safely execute finisher via game's native UI command router (never fires Delegate.Battle.Cmd.Decide)
+    local executed = false
+    local okExec, errExec = pcall(function()
+        local ui = FindFirstOf("CPP_UI_BtlCmdManager")
+        local cmd = FindFirstOf("CPP_VM_BtlCmd")
+        if ui and ui:IsValid() and cmd and cmd:IsValid() then
+            ui.SpecificActionUnitUniqueId = bestUid
+            cmd:DecideActionKey({ Category = 1, ID = tonumber(bestChoice.id) })
+            if ui.CmdState == 1 then
+                if cmd.UnitSelectVM and cmd.UnitSelectVM:IsValid() then
+                    cmd.UnitSelectVM:DecideCmd()
+                elseif cmd.DecideTarget and bestChoice.targets and #bestChoice.targets > 0 then
+                    local tids = {}
+                    for _, tid in ipairs(bestChoice.targets) do tids[#tids + 1] = tonumber(tid) end
+                    cmd:DecideTarget(tids, false)
+                end
+            end
+            executed = true
+        end
+    end)
+    if not okExec then
+        log("resonance native dispatch notice: %s", tostring(errExec))
+    end
+
+    Fight.resonanceSent = true
+    Fight.resonanceSentTime = os.clock and os.clock() or 0
     rememberCast(who, bestChoice.name)
     Fight.actions[#Fight.actions + 1] = line
     Fight.last = { who = who, skill = bestChoice.name }
