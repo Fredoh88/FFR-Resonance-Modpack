@@ -84,6 +84,7 @@ return {
         ["arise"] = { use = "revive" },
         ["reraise"] = { use = "buff" },
         ["phoenix down"] = { use = "revive" },
+        ["phoenix pinion"] = { use = "revive", tier = 2 },
         ["mega phoenix"] = { use = "revive", party = true },
         -- Vision Resonances. The wheel offers whichever of these the equipped Vision can activate.
         ["fatal impact"] = { element = "earth", phys = true, use = "finish" },
