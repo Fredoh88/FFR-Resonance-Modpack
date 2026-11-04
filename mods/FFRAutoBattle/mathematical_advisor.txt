@@ -2,39 +2,53 @@
         FINAL FANTASY RESONANCE - MATHEMATICAL GEAR & TALENT ADVISOR           
 ================================================================================
 
-[Rain] Role: Hybrid
-  - Total Equipped Skills: 25 (Phys: 0, Mag: 0, Support: 0)
-  - Elements Covered: Neutral
-  - Best Stagger Skill: <MISSING STRING TABLE ENTRY> (Stagger Power: 35)
-  - Best Burst Skill: <MISSING STRING TABLE ENTRY> (Raw Power: 53)
+[Rain] Role: Phys Breaker
+  - Total Equipped Skills: 25 (Phys: 8, Mag: 2, Support: 0)
+  - Elements Covered: fire, water, wind
+  - Best Stagger Skill: Crimson Onslaught (Stagger Power: 35)
+  - Best Burst Skill: Soul of Valiance (Raw Power: 53)
+  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
+      * Replace Fire -> Firaga (0 AP)
 
 [Lasswell] Role: Hybrid
-  - Total Equipped Skills: 22 (Phys: 0, Mag: 0, Support: 0)
-  - Elements Covered: Neutral
-  - Best Stagger Skill: <MISSING STRING TABLE ENTRY> (Stagger Power: 40)
-  - Best Burst Skill: <MISSING STRING TABLE ENTRY> (Raw Power: 35)
+  - Total Equipped Skills: 22 (Phys: 4, Mag: 4, Support: 0)
+  - Elements Covered: ice, light, thunder
+  - Best Stagger Skill: Tranquility (Stagger Power: 40)
+  - Best Burst Skill: Tranquility in Tumult (Raw Power: 35)
+  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
+      * Replace Blizzard -> Blizzaga (0 AP)
+      * Replace Thunder -> Thundaga (0 AP)
 
-[Fina] Role: Hybrid
-  - Total Equipped Skills: 32 (Phys: 0, Mag: 0, Support: 0)
-  - Elements Covered: Neutral
-  - Best Stagger Skill: <MISSING STRING TABLE ENTRY> (Stagger Power: 55)
-  - Best Burst Skill: <MISSING STRING TABLE ENTRY> (Raw Power: 500)
+[Fina] Role: Healer
+  - Total Equipped Skills: 32 (Phys: 1, Mag: 4, Support: 6)
+  - Elements Covered: fire, ice, light, thunder
+  - Best Stagger Skill: Cura (Stagger Power: 55)
+  - Best Burst Skill: Cura (Raw Power: 500)
+  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
+      * Replace Cure -> Curaja (0 AP)
+      * Replace Cura -> Curaja (0 AP)
+      * Replace Fire -> Firaga (0 AP)
+      * Replace Blizzard -> Blizzaga (0 AP)
+      * Replace Thunder -> Thundaga (0 AP)
 
-[Lid] Role: Hybrid
-  - Total Equipped Skills: 31 (Phys: 0, Mag: 0, Support: 0)
-  - Elements Covered: Neutral
-  - Best Stagger Skill: <MISSING STRING TABLE ENTRY> (Stagger Power: 60)
-  - Best Burst Skill: <MISSING STRING TABLE ENTRY> (Raw Power: 1500)
+[Lid] Role: Healer
+  - Total Equipped Skills: 31 (Phys: 2, Mag: 1, Support: 6)
+  - Elements Covered: earth, light
+  - Best Stagger Skill: Curaga (Stagger Power: 60)
+  - Best Burst Skill: Curaga (Raw Power: 1500)
+  - OPTIMIZATION OPPORTUNITY (Free AP Mod):
+      * Replace Cure -> Curaja (0 AP)
+      * Replace Cura -> Curaja (0 AP)
 
 --------------------------------------------------------------------------------
                       PARTY ELEMENTAL & BREAK EFFICIENCY                        
 --------------------------------------------------------------------------------
-Elemental Coverage: 0/7 (0%)
-  Covered: None
-  Missing: fire, ice, thunder, wind, water, light, dark
+Elemental Coverage: 6/7 (85%)
+  Covered: fire, ice, thunder, wind, water, light
+  Missing: dark
 
 MATHEMATICAL PRINCIPLE:
   Hitting an elemental weakness gives +200% Break (3.0x multiplier) and bypasses armor.
-  Recommendation: Slot abilities covering fire, ice, thunder, wind, water, light, dark across your party
+  Recommendation: Slot abilities covering dark across your party
   to ensure guaranteed 3.0x Stagger against all mob types (Beasts, Mechs, Undead).
 ================================================================================
