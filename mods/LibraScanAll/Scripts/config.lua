@@ -2,7 +2,7 @@
 return {
     -- Key that reloads this file while playing, so changes apply without a
     -- restart (nil = no key). Both Libra mods use F7 by default.
-    RELOAD_KEY = "F7",
+    RELOAD_KEY = "F12",
 
     -- Effect types that count as "scan" (eSkillEffectType values from the game):
     --   29  = Analyze       (Libra, Analyze, and any item that uses those skills)
@@ -62,6 +62,8 @@ return {
         SHOW_ITEM_CHANCES = true,   -- "Mist Potion  8.3%"
         SHOW_RESISTANCES  = true,   -- "80%   Blind · Sleep"
         SHOW_INFO         = true,   -- "EXP 120 · Gil 45 · Defeated 12"
+        SHOW_MRP          = true,   -- "Battle MRP 24": MRP of the whole battle (MRP is set
+                                    -- per enemy group, not per enemy), at your difficulty
         SHOW_HP           = true,   -- "HP 1,234 / 5,000 · Break 30 / 100"
         SHOW_DANGER       = true,   -- bosses: "!! Dangerous: ...  >> NEXT: ..."
         SHOW_MULTIPLIER   = true,   -- spell target panel: "WEAK!  x1.5"

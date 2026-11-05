@@ -44,8 +44,9 @@
     ----------------------------------------------------------------------------]]
 
 local CONFIG = {
-    START_MODE    = 1,           -- 1 numbers, 2 bar flash only, 3 vanilla (F7 cycles)
-    TOGGLE_KEY    = Key.F7,
+    START_MODE    = 1,           -- 1 numbers, 2 bar flash only, 3 vanilla (always active)
+    TOGGLE_KEY    = nil,         -- Disabled to prevent conflict with Visual Clarity (F7)
+    TOGGLE_KEY_NAME = nil,
     TICK_MS       = 100,
 
     FONT_PATH     = "/Game/UI/Font/UnipueText.UnipueText",
@@ -907,11 +908,13 @@ every(CONFIG.TICK_MS, function()
     if not ok then logOnce("tick:" .. tostring(err), "tick error: %s", tostring(err)) end
 end)
 
-onKey(CONFIG.TOGGLE_KEY, "F7", function()
+if CONFIG.TOGGLE_KEY and CONFIG.TOGGLE_KEY_NAME then
+    onKey(CONFIG.TOGGLE_KEY, CONFIG.TOGGLE_KEY_NAME, function()
     mode = mode % 3 + 1
     enabled, textOn = mode ~= 3, mode == 1
     applyToggle = true
     say("mode: %s", MODE_NAMES[mode])
-end)
+    end)
+end
 
 say("v1.2.6 loaded (mode: %s, toggle key in CONFIG)", MODE_NAMES[mode])

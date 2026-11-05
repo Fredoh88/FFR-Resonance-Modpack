@@ -6241,7 +6241,7 @@ pcall(function()
     RegisterKeyBind(Key.ONE, function() ExecuteInGameThread(pressAuto) end)
     RegisterKeyBind(Key.F2, function() ExecuteInGameThread(pressBasic) end)
     RegisterKeyBind(Key.TWO, function() ExecuteInGameThread(pressBasic) end)
-    RegisterKeyBind(Key.F7, function()
+    RegisterKeyBind(Key.F12, function()
         ExecuteInGameThread(function()
             local ok, loaded = pcall(dofile, DIR .. "/Scripts/highlighter.lua")
             if ok and type(loaded) == "table" then
