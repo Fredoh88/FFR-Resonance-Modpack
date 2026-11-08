@@ -8,21 +8,28 @@
 _G.FFR_QOL = _G.FFR_QOL or {}
 local QoL = _G.FFR_QOL
 
-QoL.SpeedModes = { 600.0, 950.0, 1400.0 }
-QoL.SpeedLabels = { "Normal (600)", "Fast Sprint (950, +58%)", "Hyper-Dash (1400, Turbo)" }
+QoL.SpeedModes = { 750.0, 1250.0, 1850.0, 2500.0 }
+QoL.SpeedLabels = {
+    "Normal (750, +25%)",
+    "Fast Sprint (1250, +108%)",
+    "Hyper-Dash (1850, +208%)",
+    "Sonic Hyperspeed (2500, +316%)"
+}
 QoL.SpeedToasts = {
-    "[ SPRINT: Normal Walk (600) ]",
-    "[ >> FAST SPRINT ACTIVE: 950 Speed (+58%) ]",
-    "[ >>> HYPER-DASH ACTIVE: 1400 Turbo Speed (+133%) ]",
+    "[ SPRINT: Normal Walk (750) ]",
+    "[ >> FAST SPRINT: 1250 Speed (Mount 1625) ]",
+    "[ >>> HYPER-DASH: 1850 Speed (Mount 2400) ]",
+    "[ >>>> SONIC HYPERSPEED: 2500 Speed (Mount 3250) ]",
 }
 QoL.SpeedColors = {
     { R = 0.85, G = 0.85, B = 0.85, A = 1.0 }, -- Normal: Neutral White/Silver
     { R = 1.00, G = 0.84, B = 0.00, A = 1.0 }, -- Fast Sprint: Gold
     { R = 0.00, G = 0.95, B = 1.00, A = 1.0 }, -- Hyper-Dash: Cyan
+    { R = 1.00, G = 0.20, B = 0.85, A = 1.0 }, -- Sonic Hyperspeed: Neon Magenta
 }
 QoL.SpeedIdx = 1
 QoL.SprintActive = false
-QoL.DefaultWalkSpeed = 600.0
+QoL.DefaultWalkSpeed = 750.0
 
 print("[FFR QoL v3.8] Initializing Field Sprint & Visible Speed HUD...")
 
@@ -209,22 +216,52 @@ local function GetPlayerController()
     return nil
 end
 
-local cachedPawn = nil
-local function GetPlayerPawn()
-    if cachedPawn and cachedPawn:IsValid() then
-        return cachedPawn
-    end
+local function GetPlayerPawns()
+    local pawns = {}
+    local seen = {}
     local pc = GetPlayerController()
-    if not pc then return nil end
-    local pawn = nil
-    pcall(function()
-        pawn = pc.Pawn or pc.Character or pc.AcknowledgedPawn
-    end)
-    if pawn and pawn:IsValid() then
-        cachedPawn = pawn
-        return cachedPawn
+    if not (pc and pc:IsValid()) then return pawns end
+
+    local function add(actor)
+        if not (actor and actor:IsValid()) then return end
+        local okAddr, a = pcall(function() return actor:GetAddress() end)
+        if okAddr and a and not seen[a] then
+            seen[a] = true
+            pawns[#pawns + 1] = actor
+        end
     end
-    return nil
+
+    pcall(function()
+        add(pc.Pawn)
+        add(pc.Character)
+        add(pc.AcknowledgedPawn)
+    end)
+
+    pcall(function()
+        local vt = pc:GetViewTarget()
+        if vt and vt:IsValid() then add(vt) end
+    end)
+
+    for i = 1, #pawns do
+        local p = pawns[i]
+        pcall(function()
+            local parent = p:GetAttachParentActor()
+            if parent and parent:IsValid() then add(parent) end
+        end)
+        pcall(function()
+            for _, prop in ipairs({ "MountActor", "Vehicle", "CurrentMount", "RidingPawn", "Chocobo", "Mount" }) do
+                local v = p[prop]
+                if v and v:IsValid() then add(v) end
+            end
+        end)
+    end
+
+    return pawns
+end
+
+local function GetPlayerPawn()
+    local pawns = GetPlayerPawns()
+    return #pawns > 0 and pawns[1] or nil
 end
 
 local function ApplySpeedToPawn(pawn, speed, isHyper)
@@ -235,7 +272,9 @@ local function ApplySpeedToPawn(pawn, speed, isHyper)
         if cm and cm:IsValid() then
             cm.MaxWalkSpeed = speed
             cm.MaxCustomMovementSpeed = speed * 1.5
-            cm.MaxAcceleration = math.max(speed * 4.0, 2048.0)
+            cm.MaxAcceleration = math.max(speed * 5.0, 4096.0)
+            cm.BrakingDecelerationWalking = math.max(speed * 4.0, 3072.0)
+            cm.GroundFriction = 8.0
             ok = true
         end
     end)
@@ -263,10 +302,18 @@ QoL.ToggleSprint = function()
     QoL.SprintActive = (QoL.SpeedIdx > 1)
     local isHyper = (QoL.SpeedIdx == 3)
 
-    local pawn = GetPlayerPawn()
+    local pawns = GetPlayerPawns()
     local updated = 0
-    if pawn and ApplySpeedToPawn(pawn, currentSpeed, isHyper) then
-        updated = 1
+    local pc = GetPlayerController()
+    local charPawn = pc and pc.Pawn
+    for _, pawn in ipairs(pawns) do
+        local target = currentSpeed
+        if pawn ~= charPawn then
+            target = currentSpeed * 1.30 -- Mounts zoom 30% faster!
+        end
+        if ApplySpeedToPawn(pawn, target, isHyper) then
+            updated = updated + 1
+        end
     end
 
     -- Show unobtrusive bottom-center speed notification (fades out automatically after 1.8s)
@@ -348,16 +395,24 @@ LoopInGameThreadWithDelay(50, function()
         end
         lastL3 = hit
 
-        -- Maintain chosen sprint speed across map loading & combat transitions
+        -- Maintain chosen sprint speed across map loading, mounting & combat transitions
         if QoL.SprintActive then
-            local pawn = GetPlayerPawn()
-            if pawn and pawn:IsValid() then
-                local cm = pawn.CharacterMovement
-                if cm and cm:IsValid() then
-                    local targetSpeed = QoL.SpeedModes[QoL.SpeedIdx]
-                    local isHyper = (QoL.SpeedIdx == 3)
-                    if math.abs(cm.MaxWalkSpeed - targetSpeed) > 1.0 then
-                        ApplySpeedToPawn(pawn, targetSpeed, isHyper)
+            local currentSpeed = QoL.SpeedModes[QoL.SpeedIdx]
+            local isHyper = (QoL.SpeedIdx >= 3)
+            local pawns = GetPlayerPawns()
+            local pc = GetPlayerController()
+            local charPawn = pc and pc.Pawn
+            for _, pawn in ipairs(pawns) do
+                if pawn and pawn:IsValid() then
+                    local cm = pawn.CharacterMovement
+                    if cm and cm:IsValid() then
+                        local target = currentSpeed
+                        if pawn ~= charPawn then
+                            target = currentSpeed * 1.30 -- Mounts zoom 30% faster!
+                        end
+                        if math.abs(cm.MaxWalkSpeed - target) > 1.0 then
+                            ApplySpeedToPawn(pawn, target, isHyper)
+                        end
                     end
                 end
             end
