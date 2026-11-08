@@ -313,7 +313,7 @@ _G.FFR_Toast = function(msg) showToast(msg) end
 
 local Defaults = {
     Enabled = true, BattleSpeed = 2, Submit = true, AttacksOnly = false,
-    TakeOverKey = "F10", MenuKey = "F9",
+    TakeOverKey = "F10", MenuKey = "F9", CheapMP = true,
 }
 local cfg = {}
 for k, v in pairs(Defaults) do cfg[k] = v end
@@ -523,7 +523,7 @@ local function buildSkillIndex()
     local effects = {}
     local skills = {}
     local tables = FindAllOf("DataTable") or {}
-    local effectTables, skillTables, itemTables = {}, {}, {}
+    local effectTables, skillTables, itemTables, generalTables = {}, {}, {}, {}
     for _, dt in ipairs(tables) do
         pcall(function()
             if type(dt) ~= "userdata" or not dt:IsValid() then return end
@@ -532,6 +532,8 @@ local function buildSkillIndex()
                 effectTables[#effectTables + 1] = dt
             elseif struct == "SKILL_DATA" then
                 skillTables[#skillTables + 1] = dt
+            elseif struct == "SKILL_GENERAL_DATA" then
+                generalTables[#generalTables + 1] = dt
             elseif struct == "CONSUMABLES_ITEM_DATA" then
                 itemTables[#itemTables + 1] = dt
             end
@@ -581,11 +583,18 @@ local function buildSkillIndex()
                         name = comm
                     end
                 end
+                local rawCost = num(field(row, "Cost")) or 0
+                local attr = num(field(row, "skillAttrType")) or 0
+                local finalCost = rawCost
+                if cfg.CheapMP ~= false and rawCost > 1 and attr ~= ATTR.LB then
+                    finalCost = 1
+                    pcall(function() row.Cost = 1 end)
+                end
                 skills[id] = {
                     id = id,
                     name = (name and name ~= "") and name or ("#" .. id),
-                    cost = num(field(row, "Cost")) or 0,
-                    attr = num(field(row, "skillAttrType")) or 0,
+                    cost = finalCost,
+                    attr = attr,
                     effect = num(field(row, "skillEffectType")) or 0,
                     varType = num(field(row, "parameterVariationType")) or -1,
                     paramType = num(field(row, "parameterType")) or 0,
@@ -599,6 +608,40 @@ local function buildSkillIndex()
                     friendStatus = friendStatus,
                     enemyStatus = enemyStatus,
                 }
+            end)
+        end)
+    end
+    for _, dt in ipairs(generalTables) do
+        pcall(function()
+            dt:ForEachRow(function(_, row)
+                local overrides = field(row, "costOverrideData")
+                if type(overrides) == "userdata" and overrides.ForEach then
+                    pcall(function()
+                        overrides:ForEach(function(_, e)
+                            local b = unwrap(e)
+                            local ctype = b and num(field(b, "costType")) or 0
+                            local cval = b and num(field(b, "Cost")) or 0
+                            if ctype == 0 and cval > 1 then
+                                pcall(function() e.Cost = 1 end)
+                            end
+                        end)
+                    end)
+                elseif type(overrides) == "userdata" or type(overrides) == "table" then
+                    local okN, n = pcall(function() return #overrides end)
+                    if okN and type(n) == "number" then
+                        for i = 1, n do
+                            pcall(function()
+                                local e = overrides[i]
+                                local b = unwrap(e)
+                                local ctype = b and num(field(b, "costType")) or 0
+                                local cval = b and num(field(b, "Cost")) or 0
+                                if ctype == 0 and cval > 1 then
+                                    e.Cost = 1
+                                end
+                            end)
+                        end
+                    end
+                end
             end)
         end)
     end
@@ -741,15 +784,19 @@ end
 
 local function skillCost(uid, id, isAll)
     local info = skillOf(id)
+    local rawCost = info and info.cost or 0
     local bfl, sl = battleLib(), skillLib()
     if bfl and bfl:IsValid() and sl and sl:IsValid() then
         local ok, cost = pcall(function()
             local unitId = bfl:GetBattleUnitParameter(uid, true):GetUnitId()
             return sl:GetSkillCost(id, unitId, isAll and true or false)
         end)
-        if ok and type(cost) == "number" and cost >= 0 then return cost end
+        if ok and type(cost) == "number" and cost >= 0 then rawCost = cost end
     end
-    return info and info.cost or 0
+    if cfg.CheapMP ~= false and rawCost > 1 and (not info or info.attr ~= ATTR.LB) then
+        return 1
+    end
+    return rawCost
 end
 
 -- true when the game says this unit can activate it, false when it says no,
@@ -3404,7 +3451,8 @@ local function turn(uid, skills, w, phase)
         end
         local itemLine = itemAt or 0.45
         -- Strict Role Discipline: DPS units NEVER burn potions on allies if dedicated healer is alive with MP!
-        local canUseHealItem = isDedicatedHealer or (not dedicatedHealerAlive) or (dedicatedHealerMp < 20) or (hurt.id == uid and (hurt.hp or 1) < 0.25)
+        local minReserveMp = (cfg.CheapMP ~= false) and 5 or 20
+        local canUseHealItem = isDedicatedHealer or (not dedicatedHealerAlive) or (dedicatedHealerMp < minReserveMp) or (hurt.id == uid and (hurt.hp or 1) < 0.25)
         if (not skill) and ((hurt.hp or 1) < itemLine) and canUseHealItem then
             local item = pickRecoveryItem(uid, w, "heal")
             if item then Fight.claim.heal[hurt.id] = true return item end
@@ -3451,7 +3499,8 @@ local function turn(uid, skills, w, phase)
     local whoActor = unitName(uid):lower()
     local isCasterHealer = whoActor:find("fina") or whoActor:find("ayaka") or whoActor:find("folka") or whoActor:find("aerith")
     local curActorMp = stat(uid, PARAM.MP, false) or 0
-    if isCasterHealer and curActorMp < 40 and not Fight.claim.ether[uid] and not Fight.claim.etherRound then
+    local minHealMp = (cfg.CheapMP ~= false) and 5 or 40
+    if isCasterHealer and curActorMp < minHealMp and not Fight.claim.ether[uid] and not Fight.claim.etherRound then
         local ether = pickRecoveryItem(uid, w, "mp")
         if ether then
             ether.reason = "proactive healer mana reserve"
@@ -5868,6 +5917,27 @@ local function hookMenu()
     end)
 end
 
+local function hookSkillCost()
+    RegisterHook("/Script/mucha.CPP_BFL_Skill:GetSkillCost", function() end, function(self, ret, skillId, unitId, isAll)
+        if cfg.CheapMP == false then return end
+        pcall(function()
+            if not ret then return end
+            local c = ret:get()
+            if type(c) == "number" and c > 1 then
+                local sid = nil
+                if skillId then
+                    local okS, sv = pcall(function() return skillId:get() end)
+                    sid = okS and num(sv) or num(skillId)
+                end
+                local info = sid and skillOf(sid)
+                if not (info and info.attr == ATTR.LB) then
+                    ret:set(1)
+                end
+            end
+        end)
+    end)
+end
+
 local function findClass(path)
     local cls = StaticFindObject(path)
     if not (cls and cls:IsValid()) then error("missing " .. path) end
@@ -6417,6 +6487,7 @@ end)
 local okHook, errHook = pcall(function()
     hookDecide()
     hookMenu()
+    hookSkillCost()
 end)
 if not okHook then log("hook failed: %s", tostring(errHook)) end
 
