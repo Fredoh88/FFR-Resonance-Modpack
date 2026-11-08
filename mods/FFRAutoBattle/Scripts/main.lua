@@ -1,4 +1,4 @@
--- FFR:AutoBattle. One auto-battle switch. One planner for the round, from the
+- FFR:AutoBattle. One auto-battle switch. One planner for the round, from the
 -- design doc: score every enemy, chip the gauges, finish them together.
 -- The characters carry out the next slot. Claims stop a second heal, a second
 -- buff, or a second Ether in the same round.
@@ -3099,14 +3099,12 @@ local function turn(uid, skills, w, phase)
         end
 
         -- If caster does NOT have Arise (only basic 10% HP Raise or no spell), but we have Phoenix Pinion (100% HP item):
-        -- Prioritize Phoenix Pinion over low-tier Raise on bosses or when 2+ allies down so heroes don't get one-shot immediately!
-        if isBoss or downN >= 2 then
-            local pinionItem = pickRecoveryItem(uid, w, "revive")
-            if pinionItem and ((pinionItem.tier and pinionItem.tier >= 2) or (pinionItem.name and pinionItem.name:lower():find("pinion"))) then
-                Fight.claim.revive[dead.id] = #(Fight.actions or {})
-                Fight.claim.heal[dead.id] = nil
-                return pinionItem
-            end
+        -- Always prioritize Phoenix Pinion over low-tier Raise so heroes are brought back at 100% HP!
+        local pinionItem = pickRecoveryItem(uid, w, "revive")
+        if pinionItem and ((pinionItem.tier and pinionItem.tier >= 2) or (pinionItem.name and pinionItem.name:lower():find("pinion"))) then
+            Fight.claim.revive[dead.id] = #(Fight.actions or {})
+            Fight.claim.heal[dead.id] = nil
+            return pinionItem
         end
 
         -- Priority 3: Standard Revive Spell (Raise)

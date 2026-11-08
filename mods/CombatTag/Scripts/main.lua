@@ -1,4 +1,4 @@
--- Combat Tag 0.1.4 - game-thread scheduling - Final Fantasy Resonance, Steam build 24250053.
+- Combat Tag 0.1.4 - game-thread scheduling - Final Fantasy Resonance, Steam build 24250053.
 -- All runtime Lua, input polling, timers, hooks, and adapter calls stay on the game thread.
 -- No LoopAsync/ExecuteWithDelay/RegisterKeyBind runtime hand-offs: the installed
 -- UE4SS build can race hook_lua and its registry from those background threads.
@@ -205,7 +205,7 @@ S.open=function()
  if S.menu and not dialogActive then S.menu=nil;D.log('Cleared stale menu state') end
  if S.menu or dialogActive then D.log('Menu blocked: another dialog is active');return end
  D.log('MENU validating current command')
- local m,ui,vm,out=active();if not m then D.log('F7 unavailable: requires a normal command turn');return end
+ local m,ui,vm,out=active();if not m then D.log('F4 unavailable: requires a normal command turn');return end
  if S.manager and (not valid(S.manager) or S.manager:GetAddress()~=m:GetAddress()) then S.cleanup() end
  S.manager=m
  local used={};for _,u in ipairs(array(m.m_UnitList)) do used[u.m_pUnitParameter:GetUnitId()]=true; if u.m_pUnitParameter:GetUnitId()<1010 and u.m_pUnitParameter:GetUnitId()>1000 then S.actors[u.m_pUnitParameter:GetUnitId()]=u end end
@@ -258,7 +258,7 @@ if not S.hooks then
    end)
   end)
  end)}
- D.log('Combat Tag 0.1.4 ready: F7 / LB+RB; game-thread-only input and confirmation')
+ D.log('Combat Tag 0.1.4 ready: F4 / LB+RB; game-thread-only input and confirmation')
 end
 if not S.lifecycle then
  S.lifecycle=true
@@ -306,13 +306,13 @@ if not S.controllerLoop then
   local ok,err=xpcall(function()
    local pc=S.pc
    if not valid(pc) then
-    S.chordArmed=false;S.f7Down=false
+    S.chordArmed=false;S.f4Down=false
     for _,p in ipairs(FindAllOf('PlayerController') or {}) do if p:IsLocalPlayerController() then pc=p;S.pc=p;break end end
    end
    if not valid(pc) then return end
-   local f7=pc:IsInputKeyDown({KeyName=FName('F7')})
-   if f7 and not S.f7Down then requestOpen('F7') end
-   S.f7Down=f7
+   local f4=pc:IsInputKeyDown({KeyName=FName('F4')})
+   if f4 and not S.f4Down then requestOpen('F4') end
+   S.f4Down=f4
    local lb=pc:IsInputKeyDown({KeyName=FName('Gamepad_LeftShoulder')})
    local rb=pc:IsInputKeyDown({KeyName=FName('Gamepad_RightShoulder')})
    if lb and rb then S.chordArmed=true end

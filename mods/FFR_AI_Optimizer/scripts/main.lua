@@ -1,4 +1,4 @@
--- ============================================================================
+- ============================================================================
 -- FFR_AI_Optimizer: Field Exploration Sprint & Smooth Performance (v3.8)
 -- 100% Crash-Proof: Targeted Player Pawn Only, Zero Ambient Character Iteration
 -- 100% Game-Thread Safe: Zero background thread races, Zero Stutter
@@ -12,8 +12,8 @@ QoL.SpeedModes = { 600.0, 950.0, 1400.0 }
 QoL.SpeedLabels = { "Normal (600)", "Fast Sprint (950, +58%)", "Hyper-Dash (1400, Turbo)" }
 QoL.SpeedToasts = {
     "[ SPRINT: Normal Walk (600) ]",
-    "[ ⚡ FAST SPRINT ACTIVE: 950 Speed (+58%) ]",
-    "[ 🚀 HYPER-DASH ACTIVE: 1400 Turbo Speed (+133%) ]",
+    "[ >> FAST SPRINT ACTIVE: 950 Speed (+58%) ]",
+    "[ >>> HYPER-DASH ACTIVE: 1400 Turbo Speed (+133%) ]",
 }
 QoL.SpeedColors = {
     { R = 0.85, G = 0.85, B = 0.85, A = 1.0 }, -- Normal: Neutral White/Silver
@@ -54,7 +54,7 @@ local function ApplyVisualFixes(showToast)
     end)
     print("[FFR QoL] Applied Ultra-Crisp Pixel Art & Visual Definition Fixes.")
     if showToast and ShowSpeedToast then
-        ShowSpeedToast("[ ✨ PIXEL CLARITY: ULTRA SHARP & DEFINED ]", { R = 0.2, G = 1.0, B = 0.8, A = 1.0 })
+        ShowSpeedToast("[ ★ PIXEL CLARITY: ULTRA SHARP & DEFINED ]", { R = 0.2, G = 1.0, B = 0.8, A = 1.0 })
     end
 end
 
