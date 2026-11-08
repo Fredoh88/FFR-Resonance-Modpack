@@ -1,4 +1,4 @@
-- ============================================================================
+-- ============================================================================
 -- FFR_AI_Optimizer: Field Exploration Sprint & Smooth Performance (v3.8)
 -- 100% Crash-Proof: Targeted Player Pawn Only, Zero Ambient Character Iteration
 -- 100% Game-Thread Safe: Zero background thread races, Zero Stutter

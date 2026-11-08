@@ -1,4 +1,4 @@
-- Combat Tag 0.1.4 - game-thread scheduling - Final Fantasy Resonance, Steam build 24250053.
+-- Combat Tag 0.1.4 - game-thread scheduling - Final Fantasy Resonance, Steam build 24250053.
 -- All runtime Lua, input polling, timers, hooks, and adapter calls stay on the game thread.
 -- No LoopAsync/ExecuteWithDelay/RegisterKeyBind runtime hand-offs: the installed
 -- UE4SS build can race hook_lua and its registry from those background threads.
