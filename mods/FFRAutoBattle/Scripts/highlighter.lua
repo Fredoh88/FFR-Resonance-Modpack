@@ -788,10 +788,25 @@ end
 
 local lastScanTime = 0
 
+local cachedHlPC = nil
 function M.tick()
     local now = os.clock()
     if now - lastScanTime < 1.0 then return end
     lastScanTime = now
+
+    -- Overworld Fast-Path: if player is physically moving in the field, no menu can be open!
+    if not (cachedHlPC and cachedHlPC:IsValid()) then
+        cachedHlPC = FindFirstOf("PlayerController")
+    end
+    if cachedHlPC and cachedHlPC:IsValid() then
+        local pawn = cachedHlPC.Pawn or cachedHlPC.Character or cachedHlPC.AcknowledgedPawn
+        if pawn and pawn:IsValid() and pawn.CharacterMovement and pawn.CharacterMovement:IsValid() then
+            local vel = pawn.CharacterMovement.Velocity
+            if vel and (vel.X ~= 0 or vel.Y ~= 0 or vel.Z ~= 0) then
+                return -- Instant exit: zero UObject scans while traveling!
+            end
+        end
+    end
 
     pcall(function()
         local inMenu = false

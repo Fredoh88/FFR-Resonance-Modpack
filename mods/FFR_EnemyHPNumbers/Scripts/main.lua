@@ -890,16 +890,18 @@ local function onKey(key, keyName, fn)
         return
     end
     local wasDown = false
+    local cachedKeyPC = nil
     LoopInGameThreadWithDelay(50, function()
-        for _, pc in ipairs(FindAllOf("PlayerController") or {}) do
-            local okN, n = pcall(function() return pc:GetFullName() end)
-            if okN and type(n) == "string" and not n:find("Default__", 1, true) then
-                local ok, down = pcall(function() return pc:IsInputKeyDown({ KeyName = FName(keyName) }) end)
-                if not ok then return end
-                down = down == true
+        if not (cachedKeyPC and cachedKeyPC:IsValid()) then
+            cachedKeyPC = FindFirstOf("PlayerController")
+        end
+        local pc = cachedKeyPC
+        if pc and pc:IsValid() then
+            local ok, down = pcall(function() return pc:IsInputKeyDown({ KeyName = FName(keyName) }) end)
+            if ok then
+                down = (down == true)
                 if down and not wasDown then pcall(fn) end
                 wasDown = down
-                return
             end
         end
     end)

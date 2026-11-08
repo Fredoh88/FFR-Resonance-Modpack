@@ -585,16 +585,15 @@ end
 -- that answer in turns (v1.3.0: one F7 press reloaded ~8 times), so the key counts as
 -- down if ANY controller says so, and it must be released for 3 polls before it fires again.
 local key = { armed = true, up = 0 }
+local cachedKeyPC = nil
 local function anyKeyDown(name)
-    local down = false
-    for _, pc in ipairs(FindAllOf("PlayerController") or {}) do
-        local okN, nm = pcall(function() return pc:GetFName():ToString() end)
-        if okN and type(nm) == "string" and not nm:find("Default__", 1, true) then
-            local okK, d = pcall(function() return pc:IsInputKeyDown({ KeyName = FName(name) }) end)
-            if okK and d == true then down = true end
-        end
+    if not (cachedKeyPC and cachedKeyPC:IsValid()) then
+        cachedKeyPC = FindFirstOf("PlayerController")
     end
-    return down
+    local pc = cachedKeyPC
+    if not (pc and pc:IsValid()) then return false end
+    local okK, d = pcall(function() return pc:IsInputKeyDown({ KeyName = FName(name) }) end)
+    return okK and d == true
 end
 LoopInGameThreadWithDelay(50, function()
     if not RELOAD_KEY then return end
