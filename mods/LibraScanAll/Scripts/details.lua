@@ -7,7 +7,10 @@
             "Mist Potion"  ->  "Mist Potion  8.3%"
       * Resistances: an extra line under the icons with every ailment
         resistance, grouped by value, e.g. "80%   Blind · Sleep".
-      * Info line: "EXP 120 · Gil 45 · Defeated 12" and "HP 1234 / 5000 · Break 30 / 100".
+      * Info line: "EXP 120 · Gil 45 · MRP [24] · Defeated 12" and
+        "HP 1234 / 5000 · Break 30 / 100". MRP is set per battle (enemy group),
+        not per enemy, so it is the whole battle's amount at the current difficulty;
+        the [ ] mark it as a battle total.
       * Danger line (bosses): the enemy's high-risk skills, and which one it
         has scheduled next, e.g. "!! Dangerous: Meteor, Flare  > NEXT: Meteor".
     And on the spell target panel (WBP_BtlSkillResistPredict): the damage
@@ -39,6 +42,8 @@ local function defaults()
         SHOW_ITEM_CHANCES = true,
         SHOW_RESISTANCES  = true,
         SHOW_INFO         = true,     -- EXP / Gil / defeated count
+        SHOW_MRP          = true,     -- the battle's MRP (whole enemy group)
+        MRP_LABEL         = "MRP",
         SHOW_HP           = true,     -- current / max HP and break gauge
         SHOW_DANGER       = true,     -- boss high-risk skills + the next one
         SHOW_MULTIPLIER   = true,     -- "x1.5" on the spell target panel
@@ -369,12 +374,87 @@ local function group(n)
     end
 end
 
+-- MRP: BATTLE_GROUP_DATA.ap of the current battle x the difficulty's MRPointRate.
+-- Read only. Group table read once into id -> ap.
+local groupAp = nil
+local lastMrp = nil          -- { id, ap, rate, shown } of the last battle shown
+local function battleMrp()
+    local B = lib("/Script/mucha.Default__CPP_BFL_Battle")
+    if not B then sayOnce("mrp:nobfl", "MRP: CPP_BFL_Battle not found"); return nil end
+    local okI, id = pcall(function() return B:GetEncountBattleGroupdId() end)
+    id = okI and num(id) or nil
+    if not id or id <= 0 then sayOnce("mrp:noid", "MRP: no battle group id (%s)", tostring(id)); return nil end
+    if not groupAp then
+        -- every loaded table with this row struct (there may be more than one)
+        local map, nT, nR = {}, 0, 0
+        for _, dt in ipairs(FindAllOf("DataTable") or {}) do
+            local okN, full = pcall(function() return dt:GetFullName() end)
+            local okS, rs = pcall(function() return dt:GetRowStruct():GetFName():ToString() end)
+            if okN and okS and rs == "BATTLE_GROUP_DATA" and full and not full:find("Default__", 1, true) then
+                nT = nT + 1
+                eachRow(dt, function(row)
+                    local okR, rid, ap = pcall(function() return num(row.ID), num(row.ap) end)
+                    if okR and rid and ap and map[rid] == nil then map[rid] = ap; nR = nR + 1 end
+                end)
+            end
+        end
+        if nR == 0 then sayOnce("mrp:nodt", "MRP: battle group table not found"); return nil end
+        groupAp = map
+        say("MRP: read %d battle groups from %d table(s)", nR, nT)
+    end
+    local ap = groupAp[id]
+    if not ap then sayOnce("mrp:miss" .. id, "MRP: battle group %d not in table", id); return nil end
+    local rate = 1
+    local P = lib("/Script/mucha.Default__CPP_BFL_SaveDataPlayer")
+    if P then
+        local okR, r = pcall(function() return P:GetCurDifficultyMRPointRate() end)
+        if okR and num(r) and num(r) > 0 then rate = num(r) end
+    end
+    local shown = math.floor(ap * rate + 0.5)
+    if not lastMrp or lastMrp.id ~= id or lastMrp.shown ~= shown then
+        lastMrp = { id = id, ap = ap, rate = rate, shown = shown }
+        say("MRP: battle group %d gives %d x difficulty rate %.2f = %d", id, ap, rate, shown)
+    end
+    return shown
+end
+
+-- After a battle: log what the results screen got, to check the prediction above.
+local resultSeen, resultPoll = nil, 0
+local function checkResult()
+    resultPoll = resultPoll + 1
+    if resultPoll < 20 then return end
+    resultPoll = 0
+    for _, vm in ipairs(FindAllOf("CPP_VM_BattleResult") or {}) do
+        if valid(vm) and not objName(vm):find("Default__", 1, true) then
+            local ok, b, x, t = pcall(function()
+                local d = vm.BtlResultData
+                return num(d.baseAp), num(d.bonusAp), num(d.totalAp)
+            end)
+            if ok and t and t > 0 then
+                local key = string.format("%s/%s/%s", tostring(b), tostring(x), tostring(t))
+                if key ~= resultSeen then
+                    resultSeen = key
+                    say("MRP check: results screen base %s, bonus %s, total %s (Libra showed %s)",
+                        tostring(b), tostring(x), tostring(t), lastMrp and tostring(lastMrp.shown) or "-")
+                end
+            end
+        end
+    end
+end
+
 local function infoLine(param, raw)
     local parts = {}
-    if CFG.SHOW_INFO and raw then
+    if raw and (CFG.SHOW_INFO or CFG.SHOW_MRP) then
         local exp, gil = num(raw.Experience), num(raw.Money)
-        if exp then parts[#parts + 1] = "EXP " .. group(exp) end
-        if gil then parts[#parts + 1] = "Gil " .. group(gil) end
+        if CFG.SHOW_INFO and exp then parts[#parts + 1] = "EXP " .. group(exp) end
+        if CFG.SHOW_INFO and gil then parts[#parts + 1] = "Gil " .. group(gil) end
+        if CFG.SHOW_MRP then
+            local okM, m = pcall(battleMrp)
+            if okM and m and m > 0 then parts[#parts + 1] = CFG.MRP_LABEL .. " [" .. group(m) .. "]"
+            elseif not okM then sayOnce("mrp:err", "MRP error: %s", tostring(m)) end
+        end
+    end
+    if CFG.SHOW_INFO and raw then
         local save = num(raw.SaveId)
         local L = lib("/Script/mucha.Default__CPP_BFL_SaveDataUnit")
         if save and L then
@@ -642,6 +722,7 @@ local function isRuntimeLayout(o)
 end
 
 function M.tick()
+    if CFG.SHOW_MRP then pcall(checkResult) end
     for _, cls in ipairs(NAME_CLASSES) do
         for _, w in ipairs(FindAllOf(cls) or {}) do
             if valid(w) and not objName(w):find("Default__", 1, true) then

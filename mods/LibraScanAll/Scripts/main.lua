@@ -1,5 +1,5 @@
 --[[----------------------------------------------------------------------------
-    LibraScanAll v1.3.1 -- FINAL FANTASY RESONANCE (UE 5.6, UE4SS 3.0.1 experimental)
+    LibraScanAll v1.4.1 -- FINAL FANTASY RESONANCE (UE 5.6, UE4SS 3.0.1 experimental)
 
     Libra, Analyze and Mecha Mogscan scan ONE enemy in vanilla. This mod makes
     them scan EVERY enemy on the field.
@@ -28,7 +28,7 @@
     ----------------------------------------------------------------------------]]
 
 local MOD = "LibraScanAll"
-local VERSION = "1.3.1"
+local VERSION = "1.4.1"
 
 -- Settings. Read through applyConfig so the reload key (F7) can re-apply them.
 local CONFIG, SCAN, NEW_TARGET, FROM, MIXED, SKIP_FRIENDLY, LOG_EACH
