@@ -5604,20 +5604,18 @@ local function makeWidget(kind, ax, ay, alx, aly, size)
     pcall(function() widget:SetIsFocusable(false) end)
     pcall(function() text:SetIsFocusable(false) end)
     widget:SetVisibility(1)
-    widget:AddToViewport(kind == "toast" and 9999 or (kind == "buildGuide" and 1500 or 1000))
+    widget:AddToViewport(kind == "toast" and 9999 or 1000)
     return { widget = widget, text = text }
 end
 
 local function widget(kind)
     local w = Hud.box[kind]
     if w and w.widget:IsValid() and w.text:IsValid() then
-        if not w.widget:IsInViewport() then w.widget:AddToViewport(kind == "toast" and 9999 or (kind == "buildGuide" and 1500 or 1000)) end
+        if not w.widget:IsInViewport() then w.widget:AddToViewport(kind == "toast" and 9999 or 1000) end
         return w
     end
     if kind == "toast" then
         w = makeWidget(kind, 0.5, 0.16, 0.5, 0.5, 20)
-    elseif kind == "buildGuide" then
-        w = makeWidget(kind, 0.98, 0.06, 1.0, 0.0, 12)
     elseif kind == "advisor" then
         w = makeWidget(kind, 0.98, 0.04, 1.0, 0.0, 13)
     else
@@ -5683,162 +5681,9 @@ Hud.badgeShow = function(msg, duration)
     end)
 end
 
-local BUILD_PAGES = {
-    [1] = table.concat({
-        "=================================================================",
-        "       BUILD GUIDE (PAGE 1/5) - RAIN & LASSWELL                  ",
-        "=================================================================",
-        "[RAIN] Sentinel Tank & Fire Vanguard",
-        "  * Best Visions  : Cecil / Warrior of Light / Charlotte (Knight of Grandshelt)",
-        "  * Primary Stat  : Phys. Def = Mag. Def > HP > Sanctity > Atk",
-        "  * Gear Rules    : Heavy Plate (Blessed Cuirass!), Def/HP Rings",
-        "  * Why Def Wins  : High DEF multiplies Effective HP (EHP)!",
-        "  * Core Arts     : Firaga Blade (3.0x Fire Break), Tackle, Provoke",
-          "  * Top Passives  : Multi-Cover, Arms Akimbo, Physical Counter, Half MP",
-        "  * Limit Bursts  : Infinity Drive (1-gauge) / Crimson Onslaught (AoE)",
-        "",
-        "[LASSWELL] Critical Ice Assassin & Boss Killer",
-        "  * Best Visions  : Cloud / Sephiroth / Tidus (Crit % & Stagger Burst)",
-        "  * Primary Stat  : Phys. Atk > Crit Rate % > Speed > Ice Dmg %",
-        "  * Gear Rules    : Katanas, Attack/Crit Rings (Hyper Wrist), Light Armor",
-        "  * Why Crit Wins : Crits deal 1.5x - 2.0x damage and pierce defenses!",
-        "  * Core Combo    : Dawn Frost (Stagger 27) -> Null Moon (Crit Kill)",
-          "  * Top Passives  : Cloud Soul, Rearguard, Scan & Strike, Double Action",
-        "  * Limit Bursts  : Null Moon (Instant Crit) / Transient Rite (AoE Ice)",
-        "=================================================================",
-        "      [Press View Button (Back) or F9: Next Page (2/5) | F8: Math HUD]      ",
-    }, "\n"),
-    [2] = table.concat({
-        "=================================================================",
-        "       BUILD GUIDE (PAGE 2/5) - FINA, DARK FINA & SAKURA         ",
-        "=================================================================",
-        "[FINA] Luminary Divine Healer & Primary Buffer",
-        "  * Best Visions  : Leah / Ayaka / Tronn (Max Heals & Break Flexibility)",
-        "  * Primary Stat  : Spirit (SPR) > Speed > Max MP > HP",
-        "  * The SPR Rule  : Spirit directly multiplies Curaja healing power!",
-        "  * Gear Rules    : Staves (Staff of Wrath), White Robes, Spirit Rings",
-        "  * Core Arts     : Curaja (100% Party Heal), Arise (100% Revive), Cheer",
-          "  * Top Passives  : Dualcast, Half MP, LB Triple Charge, Charge LB on Heal",
-        "  * Limit Bursts  : Holy Ray (Light Stagger) / Radiant Restoration (Full Raise)",
-        "",
-        "[SAKURA] Sage Omni-Elemental Artillery Nuker",
-        "  * Best Visions  : Terra / Clive / Aileen (Omni-Elemental Nukes)",
-        "  * Primary Stat  : Mag. Atk > Elemental Multipliers > Speed > Max MP",
-        "  * Core Arts     : Thundaga, Aeroga, Waterga (Covers 3+ Elements)",
-        "  * Top Passives  : Dualcast, Half MP, Magic Up, MP Stash",
-        "",
-        "[ARCHWITCH FINA] Saboteur Chaos Nuker & Debuffer",
-        "  * Best Visions  : Colossal Shantotto / Sephiroth / Victoria",
-        "  * Primary Stat  : Mag. Atk > Dark Dmg % > Speed > Spirit",
-        "  * Core Arts     : Dystopia, Alterna, Deprotect, Deshell, Slow",
-        "  * Top Passives  : Dualcast, Half MP, Magic Up",
-        "=================================================================",
-        "      [Press View Button (Back) or F9: Next Page (3/5) | F8: Math HUD]      ",
-    }, "\n"),
-    [3] = table.concat({
-        "=================================================================",
-        "       BUILD GUIDE (PAGE 3/5) - NICHOL, LID & JAKE               ",
-        "=================================================================",
-        "[NICHOL] Tactician & Elemental Support",
-        "  * Best Visions  : Victoria / Tronn / Aileen (Buffer BiS & Turn Speed)",
-        "  * Primary Stat  : Speed > MP Recovery > Mag. Def > Spirit",
-        "  * Role          : Party stat buffering and elemental enchants.",
-        "  * Best Gear     : Scholar Books/Staves, Hermes Sandals (Speed)",
-        "  * Core Arts     : Formation: Steeled Advance (LB Shield), Deprotect",
-          "  * Top Passives  : Dualcast, Half MP, Tactical Fluid",
-        "",
-        "[LID] Mechanist & Armor Shredder",
-        "  * Best Visions  : Tidus / Terra / Camille (Physical Break & Mech Shred)",
-        "  * Primary Stat  : Break Power % > Phys. Atk > Speed > HP",
-        "  * Role          : Shreds boss DEF and obliterates mechanical foes.",
-        "  * Best Gear     : Heavy Hammers/Wrenches, Engineer Overalls",
-        "  * Core Arts     : Armor Break, Weapon Break, March of the Machines (LB)",
-          "  * Top Passives  : Break Mastery, Overdrive, Half MP",
-        "",
-        "[JAKE] Corsair & Long-Range Sniper",
-        "  * Best Visions  : Amelia / Cecil / Cloud (Crit Gunner & Survivability)",
-        "  * Primary Stat  : Phys. Atk > Crit Rate > Lightning/Fire Dmg %",
-        "  * Role          : Backline physical burst and elemental bullet arts.",
-        "  * Best Gear     : Dual Handguns / Rifles, Leather Trenchcoats",
-        "  * Core Arts     : Flame Shot, Lightning Shot, T.R.N.D. (LB Stagger 27)",
-          "  * Top Passives  : Quick Draw, Arms Akimbo, Half MP",
-        "=================================================================",
-        "      [Press View Button (Back) or F9: Next Page (4/5) | F8: Math HUD]      ",
-    }, "\n"),
-    [4] = table.concat({
-        "=================================================================",
-        "     BUILD GUIDE (PAGE 4/5) - MENU UPGRADE DECISION MATRIX       ",
-        "=================================================================",
-        ">> THE BLUE UP-ARROW (^) RULE:",
-        "  * Rain: Blue numbers (^) on Phys/Mag Def & HP = 100% EQUIP IT!",
-        "  * Lasswell: Blue numbers (^) on Phys Atk & Crit = 100% EQUIP IT!",
-        "  * Fina: Blue numbers (^) on Spirit (SPR) = 100% EQUIP IT!",
-        "  * Sakura: Blue numbers (^) on Mag Atk = 100% EQUIP IT!",
-        "",
-        ">> PASSIVES BEAT FLAT STATS:",
-        "  * Multipliers (+20% Gil, +15% Crit Rate, +20% Break Accumulation)",
-        "    are mathematically superior to flat +5 white stats!",
-        "",
-        ">> EXPLOITING THE FREE AP MOD:",
-        "  * All skill AP costs are 0! Purge all Tier 1 skills (Fire, Cure).",
-        "  * Equip exclusively Tier 3/4 (-ga / -ja / High Arts) in every slot!",
-        "=================================================================",
-        "      [Press View Button (Back) or F9: Next Page (5/5) | F8: Math HUD]      ",
-    }, "\n"),
-    [5] = table.concat({
-        "=================================================================",
-        "       BUILD GUIDE (PAGE 5/5) - ESPER SYNERGIES & COMBAT ROSTER  ",
-        "=================================================================",
-        "[RAMUH] Lord of Thunder & Stagger Destroyer",
-        "  * Best Carrier : Lid (Mechanist Break) or Fina (High Magic)",
-        "  * Signature    : Judgment Bolt (Thunder AoE Break)",
-        "  * Synergy Arts : Blitzstrahl, Ascension, Sparkstrike, Thundara/ga",
-        "  * Mod Synergy  : Party auto-chains lightning attacks while active!",
-        "",
-        "[SIREN] Songstress of the Gale & Defensive Warden",
-        "  * Best Carrier : Fina (Primary Healer / Luminary)",
-        "  * Signature    : Siren's Song (Wind AoE + Sleep / Stall)",
-        "  * Synergy Arts : Aero, Aerora, Aeroga, Sonic Strike",
-        "  * Mod Synergy  : Grants party Regen; auto-chains wind abilities!",
-        "",
-        "[FUTURE ESPERS READY IN MOD ROSTER]",
-        "  * Ifrit (Fire/Rain) | Shiva (Ice/Lasswell) | Titan (Earth/Lid)",
-        "  * Carbuncle (Reflect/Guard) | Odin (Zantetsuken/Phys Killer)",
-        "  * Leviathan (Water) | Alexander (Light) | Diablos (Dark)",
-        "=================================================================",
-        "        [Press View Button (Back) or F9: Close Guide | F8: Math HUD]        ",
-    }, "\n"),
-}
-
-local currentGuidePage = 0
-
-Hud.buildGuideShow = function(text)
-    if Hud.disabled then return end
-    ExecuteInGameThread(function()
-        local ok, err = pcall(function()
-            local w = widget("buildGuide")
-            if not text then
-                w.widget:SetVisibility(1)
-                return
-            end
-            w.text:SetText(FText(text))
-            w.widget:SetVisibility(3)
-        end)
-        if not ok then
-            log("buildGuide error: %s", tostring(err))
-        end
-    end)
-end
-
-local function toggleBuildGuide()
-    currentGuidePage = (currentGuidePage + 1) % 6
-    if currentGuidePage == 0 then
-        Hud.buildGuideShow(nil)
-        Hud.toast("Build Guide: CLOSED")
-    else
-        Hud.buildGuideShow(BUILD_PAGES[currentGuidePage])
-        Hud.toast(string.format("Build Guide: Page %d/5 (View / F9 to cycle)", currentGuidePage))
-    end
+-- In-game Build Guide removed (migrated to live Google Doc)
+Hud.buildGuideShow = function(text) end
+local function toggleBuildGuide() end
 end
 
 local advisorVisible = false
@@ -6208,10 +6053,7 @@ local function pollTriggers()
         if now == nil then return false, was end
         return (now and not was) and true or false, now
     end
-    local viewBtn = down("Gamepad_Special_Left")
-    local viewRose
-    viewRose, padR3 = rose(viewBtn, padR3)
-    if viewRose then toggleBuildGuide() end
+    -- Gamepad_Special_Left (View button) unintercepted
     if Highlighter and not Fight.active then Highlighter.tick() end
 
     local r3Combat = down("Gamepad_RightThumbstick")
@@ -6257,7 +6099,6 @@ pcall(function()
     end)
     RegisterKeyBind(Key.F8, function() ExecuteInGameThread(toggleAdvisorHud) end)
     RegisterKeyBind(Key.F6, function() ExecuteInGameThread(toggleCombatSpeed) end)
-    RegisterKeyBind(Key.F11, function() ExecuteInGameThread(toggleBuildGuide) end)
 end)
 gameLoop(16, pollTriggers)
 gameLoop(1200, function()
