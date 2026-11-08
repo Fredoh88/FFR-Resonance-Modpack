@@ -90,7 +90,7 @@ do
     else
         log("bestiary unavailable: %s", tostring(loaded))
     end
-    -- Load Persistent Bestiary Memory
+    -- Load Persistent Bestiary Memory (Weaknesses, Absorbs, Immunities, Resists)
     local okMem, mem = pcall(dofile, DIR .. "/Scripts/bestiary_memory.lua")
     if okMem and type(mem) == "table" then
         for k, aff in pairs(mem) do
@@ -103,12 +103,86 @@ do
                         if not found then Mobs[k].weak[#Mobs[k].weak + 1] = el end
                     end
                 end
+                if aff.absorb then Mobs[k].absorb = aff.absorb end
+                if aff.no then Mobs[k].no = aff.no end
+                if aff.half then Mobs[k].half = aff.half end
             else
                 Mobs[k] = aff
             end
         end
         log("persistent bestiary memory loaded")
     end
+end
+
+-- =============================================================================
+-- SMART AI PERSISTENT LEARNING ENGINE (Bestiary, Boss Patterns, DPS Rotations)
+-- =============================================================================
+local TacticalMemory = {
+    bossThresholds = {}, -- [bossKey] = { 75, 50, 25 }
+    skillYield = {},     -- [who] = { [skill] = { total = X, uses = Y, avg = Z } }
+}
+do
+    local okTac, tmem = pcall(dofile, DIR .. "/Scripts/tactical_memory.lua")
+    if okTac and type(tmem) == "table" then
+        if tmem.bossThresholds then TacticalMemory.bossThresholds = tmem.bossThresholds end
+        if tmem.skillYield then TacticalMemory.skillYield = tmem.skillYield end
+        log("persistent tactical memory loaded")
+    end
+end
+
+local function learnAffinity(enemyName, element, kind)
+    if not (enemyName and element and kind and Fight) then return end
+    Fight.learnedAffinity = Fight.learnedAffinity or {}
+    local k = mobKey(enemyName) or foldName(enemyName)
+    Fight.learnedAffinity[k] = Fight.learnedAffinity[k] or {}
+    Fight.learnedAffinity[k][kind] = Fight.learnedAffinity[k][kind] or {}
+    if not Fight.learnedAffinity[k][kind][element] then
+        Fight.learnedAffinity[k][kind][element] = true
+        Mobs[k] = Mobs[k] or {}
+        Mobs[k][kind] = Mobs[k][kind] or {}
+        Mobs[k][kind][element] = true
+        local tag = kind:upper()
+        if kind == "weak" then tag = "WEAKNESS DISCOVERED" end
+        if kind == "absorb" then tag = "ABSORB AVOIDANCE (HEALS ENEMY)" end
+        if kind == "no" then tag = "IMMUNITY (0 DAMAGE)" end
+        local msg = string.format("[AI LEARNED] %s %s: %s!", enemyName, tag, element:upper())
+        log("%s", msg)
+        appendLog("  " .. msg)
+        if showToast then showToast(msg) end
+    end
+end
+
+local function learnBossThreshold(bossName, hpPct, turn)
+    if not (bossName and hpPct and TacticalMemory) then return end
+    local k = mobKey(bossName) or foldName(bossName)
+    TacticalMemory.bossThresholds = TacticalMemory.bossThresholds or {}
+    TacticalMemory.bossThresholds[k] = TacticalMemory.bossThresholds[k] or {}
+    local rounded = math.floor((hpPct + 2.5) / 5) * 5
+    local exists = false
+    for _, t in ipairs(TacticalMemory.bossThresholds[k]) do
+        if math.abs(t - rounded) <= 4 then exists = true; break end
+    end
+    if not exists and rounded > 5 and rounded < 98 then
+        table.insert(TacticalMemory.bossThresholds[k], rounded)
+        table.sort(TacticalMemory.bossThresholds[k], function(a, b) return a > b end)
+        local msg = string.format("[AI PATTERN] %s Danger Threshold learned at %d%% HP!", bossName, rounded)
+        log("%s", msg)
+        appendLog("  " .. msg)
+        if showToast then showToast(msg) end
+    end
+end
+
+local function learnSkillYield(who, skillName, deltaHpPct)
+    if not (who and skillName and deltaHpPct and deltaHpPct > 0 and TacticalMemory) then return end
+    local wKey = who:lower()
+    local sKey = skillName:lower()
+    TacticalMemory.skillYield = TacticalMemory.skillYield or {}
+    TacticalMemory.skillYield[wKey] = TacticalMemory.skillYield[wKey] or {}
+    local entry = TacticalMemory.skillYield[wKey][sKey] or { total = 0, uses = 0, avg = 0 }
+    entry.uses = entry.uses + 1
+    entry.total = entry.total + deltaHpPct
+    entry.avg = entry.total / entry.uses
+    TacticalMemory.skillYield[wKey][sKey] = entry
 end
 local Health = {}
 do
@@ -992,6 +1066,24 @@ local function roleMasteryBonus(uid, skill, w)
 
     local isLongFight = checkIsLongFight(w)
 
+    -- Check if approaching a learned boss danger threshold!
+    local approachingDangerPhase = false
+    if isLongFight and w and w.enemies then
+        for _, e in ipairs(w.enemies) do
+            local k = mobKey(e.name) or foldName(e.name)
+            local thresholds = TacticalMemory and TacticalMemory.bossThresholds and TacticalMemory.bossThresholds[k]
+            if thresholds then
+                local curPct = math.floor((e.hp or 1) * 100)
+                for _, t in ipairs(thresholds) do
+                    if curPct > t and curPct <= (t + 10) then
+                        approachingDangerPhase = true
+                        break
+                    end
+                end
+            end
+        end
+    end
+
     -- 1. Rain (The Sentinel Vanguard Tank) - Aggro Anchor, Mitigation & Stagger Cashout
     if who:find("rain") or who:find("cecil") or who:find("wilhelm") or who:find("charlotte") or who:find("snow") or who:find("basch") then
         local bossCharging = false
@@ -1013,7 +1105,7 @@ local function roleMasteryBonus(uid, skill, w)
             bonus = bonus + (anyBroken and 2000 or 9000)
         -- Defensive Barriers: Critical mitigation when holding aggro or when boss charges danger moves
         elseif sName:find("phalanx") or sName:find("iron wall") or sName:find("royal guard") or sName:find("sentinel") then
-            bonus = bonus + (bossCharging and 20000 or (isLongFight and 15000 or 5000))
+            bonus = bonus + ((bossCharging or approachingDangerPhase) and 20000 or (isLongFight and 15000 or 5000))
         -- Provoke / Taunt / Cover: In long fights, lock down aggro! In short fights, peel if party hurt
         elseif sName:find("provoke") or sName:find("taunt") or sName:find("roar") or sKind == "provoke" or sKind == "cover" then
             local partyHurt = false
@@ -3812,6 +3904,16 @@ local function turn(uid, skills, w, phase)
             if (tb + rmb) > 0 then
                 score = score + tb + rmb
             end
+
+            -- Empirical Skill Yield Reinforcement Learning:
+            -- Skills that have historically produced massive HP depletion gain positive reinforcement!
+            if whoStr and s.name and TacticalMemory and TacticalMemory.skillYield then
+                local wYield = TacticalMemory.skillYield[whoStr]
+                local sYield = wYield and wYield[s.name:lower()]
+                if sYield and sYield.avg then
+                    score = score + math.min(math.floor(sYield.avg * 10000), 5000)
+                end
+            end
             if score > bestScore then
                 bestS, bestU, bestScore, bestSpread = s, targets[1], score, spread and true or false
             end
@@ -4153,6 +4255,7 @@ local function turn(uid, skills, w, phase)
                 if Hud.toast then Hud.toast(string.format("[DANGER] %s Threat! [%s]", u.name, moves)) end
                 log("Boss danger warning: %s [%s]", u.name, moves)
                 appendLog("  Boss danger warning: " .. u.name .. " [" .. moves .. "]")
+                learnBossThreshold(u.name, (u.hp or 1) * 100, Fight.rounds or 0)
                 break
             end
         end
@@ -4597,6 +4700,7 @@ end
 
 local function noteChanges(now)
     local last = Fight.last
+    local prevHit = Fight.prevHit
     for id, was in pairs(Fight.prev) do
         local cur = now[id]
         if was.side == "ally" and was.hp > 0 and (not cur or cur.hp <= 0) then
@@ -4610,6 +4714,45 @@ local function noteChanges(now)
                 local by = last and (last.who .. " (" .. last.skill .. ")") or "the party"
                 Fight.broke[#Fight.broke + 1] = was.name .. " by " .. by
                 appendLog("  broke: " .. was.name .. " by " .. by)
+            end
+        end
+
+        -- =====================================================================
+        -- EMPIRICAL COMBAT LEARNING: Observe damage results and learn resistances!
+        -- =====================================================================
+        if was.side == "enemy" and cur and prevHit and prevHit.id == id then
+            local deltaHp = (was.hp or 1) - (cur.hp or 1)
+            local sName = prevHit.skill and prevHit.skill:lower() or ""
+            local skillRow = Known and Known.skills and Known.skills[sName]
+            local elem = skillRow and (skillRow.element or skillRow.elements)
+            if type(elem) == "table" then elem = elem[1] end
+            if not elem then
+                if sName:find("fire") or sName:find("fira") or sName:find("flame") then elem = "fire"
+                elseif sName:find("blizz") or sName:find("frost") or sName:find("ice") then elem = "ice"
+                elseif sName:find("thund") or sName:find("bolt") or sName:find("spark") then elem = "thunder"
+                elseif sName:find("water") or sName:find("aqua") or sName:find("flood") then elem = "water"
+                elseif sName:find("aero") or sName:find("gale") or sName:find("wind") then elem = "wind"
+                elseif sName:find("stone") or sName:find("earth") or sName:find("quake") then elem = "earth"
+                elseif sName:find("holy") or sName:find("banish") or sName:find("light") then elem = "light"
+                elseif sName:find("dark") or sName:find("dystopia") or sName:find("bio") then elem = "dark"
+                end
+            end
+
+            if elem and type(elem) == "string" then
+                if deltaHp < -0.005 then
+                    -- Enemy was HEALED by this element! ABSORPTION CONFIRMED!
+                    learnAffinity(was.name, elem, "absorb")
+                elseif deltaHp <= 0.0005 and (was.hp or 1) > 0.05 and not was.broken and not cur.broken then
+                    -- Attack dealt 0 damage: IMMUNITY / NULL CONFIRMED!
+                    learnAffinity(was.name, elem, "no")
+                elseif deltaHp >= 0.18 or (cur.broken and not was.broken) then
+                    -- Attack chunked >= 18% HP or shattered break gauge: WEAKNESS CONFIRMED!
+                    learnAffinity(was.name, elem, "weak")
+                end
+            end
+
+            if deltaHp > 0.04 and prevHit.who and prevHit.skill then
+                learnSkillYield(prevHit.who, prevHit.skill, deltaHp)
             end
         end
     end
@@ -4916,7 +5059,7 @@ local function finishBattle()
     Fight.adaptiveSpeedApplied = false
     _G.FFR_LootedEnemies = {}
 
-    -- Save learned bestiary weaknesses persistently
+    -- 1. Save learned bestiary weaknesses & affinities persistently
     pcall(function()
         if Fight and Fight.learnedAffinity and next(Fight.learnedAffinity) then
             local lines = { "-- Persistent Bestiary Memory for Final Fantasy Resonance", "return {" }
@@ -4927,6 +5070,21 @@ local function finishBattle()
                     for el in pairs(aff.weak) do wList[#wList + 1] = string.format("[%q]=true", el) end
                     parts[#parts + 1] = "weak={" .. table.concat(wList, ",") .. "}"
                 end
+                if aff.absorb and next(aff.absorb) then
+                    local aList = {}
+                    for el in pairs(aff.absorb) do aList[#aList + 1] = string.format("[%q]=true", el) end
+                    parts[#parts + 1] = "absorb={" .. table.concat(aList, ",") .. "}"
+                end
+                if aff.no and next(aff.no) then
+                    local nList = {}
+                    for el in pairs(aff.no) do nList[#nList + 1] = string.format("[%q]=true", el) end
+                    parts[#parts + 1] = "no={" .. table.concat(nList, ",") .. "}"
+                end
+                if aff.half and next(aff.half) then
+                    local hList = {}
+                    for el in pairs(aff.half) do hList[#hList + 1] = string.format("[%q]=true", el) end
+                    parts[#parts + 1] = "half={" .. table.concat(hList, ",") .. "}"
+                end
                 if #parts > 0 then
                     lines[#lines + 1] = string.format("  [%q] = { %s },", k, table.concat(parts, ", "))
                 end
@@ -4936,6 +5094,35 @@ local function finishBattle()
             if f then
                 f:write(table.concat(lines, "\n"))
                 f:close()
+                log("saved persistent bestiary memory")
+            end
+        end
+    end)
+
+    -- 2. Save learned tactical memory (boss danger thresholds & skill yields)
+    pcall(function()
+        if TacticalMemory and (next(TacticalMemory.bossThresholds or {}) or next(TacticalMemory.skillYield or {})) then
+            local lines = { "-- Persistent Tactical & Pattern Memory for Final Fantasy Resonance", "return {" }
+            lines[#lines + 1] = "  bossThresholds = {"
+            for bName, thresh in pairs(TacticalMemory.bossThresholds or {}) do
+                lines[#lines + 1] = string.format("    [%q] = { %s },", bName, table.concat(thresh, ", "))
+            end
+            lines[#lines + 1] = "  },"
+            lines[#lines + 1] = "  skillYield = {"
+            for wName, skills in pairs(TacticalMemory.skillYield or {}) do
+                lines[#lines + 1] = string.format("    [%q] = {", wName)
+                for sName, dat in pairs(skills) do
+                    lines[#lines + 1] = string.format("      [%q] = { total=%.2f, uses=%d, avg=%.2f },", sName, dat.total or 0, dat.uses or 1, dat.avg or 0)
+                end
+                lines[#lines + 1] = "    },"
+            end
+            lines[#lines + 1] = "  },"
+            lines[#lines + 1] = "}"
+            local f = io.open(DIR .. "/Scripts/tactical_memory.lua", "w")
+            if f then
+                f:write(table.concat(lines, "\n"))
+                f:close()
+                log("saved persistent tactical memory")
             end
         end
     end)
