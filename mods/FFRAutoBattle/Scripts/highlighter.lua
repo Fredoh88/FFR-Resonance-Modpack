@@ -68,7 +68,8 @@ local CHAR_PROFILES = {
             ["safety bit"]         = { score = 5, tag = "BiS: Death Immune" },
 
             -- Greatswords & Weapons
-            ["crimson saber"]      = { score = 4, tag = "Recommended: Saber" },
+            ["crimson saber"]      = { score = 4, tag = "Ch.1 BiS: Saber" },
+            ["enhancer"]           = { score = 5, tag = "Ch.5 BiS: Hybrid Blade" },
             ["iron sword"]         = { score = 3, tag = "Upgrade: Sword" },
             ["broadsword"]         = { score = 3, tag = "Upgrade: Sword" },
             ["mythril blade"]      = { score = 3, tag = "Upgrade: Blade" },
@@ -149,7 +150,13 @@ local CHAR_PROFILES = {
             ["zanmato"]            = { score = 4, tag = "Recommended: High ATK" },
             ["masamune"]           = { score = 5, tag = "BiS: Legendary Blade" },
             ["muramasa"]           = { score = 5, tag = "BiS: Demon Katana" },
-            ["chirijiraden"]       = { score = 5, tag = "BiS: Fire Katana" },
+            ["chirijiraden"]       = { score = 5, tag = "Ch.7 BiS: Fire Katana" },
+            ["genji glove"]        = { score = 5, tag = "Ch.6 BiS: Dual-Wield" },
+            ["celestial glove"]    = { score = 5, tag = "Ch.7 BiS: All Stats +30" },
+            ["hero ring"]          = { score = 5, tag = "Ch.2 BiS: ATK/MAG+10%" },
+            ["black cowl"]         = { score = 5, tag = "Ch.7 BiS: ATK Headgear" },
+            ["tiger mask"]         = { score = 4, tag = "Ch.4 BiS: ATK Mask" },
+            ["brave suit"]         = { score = 5, tag = "Ch.6 BiS: ATK Body Armor" },
 
             ["leather armor"]      = { score = 2, tag = "Basic: Armor" },
             ["kenpogi"]            = { score = 3, tag = "Upgrade: ATK" },
@@ -195,17 +202,25 @@ local CHAR_PROFILES = {
         gear = {
             ["wooden staff"]       = { score = 2, tag = "Basic: Staff" },
             ["staff of healing"]   = { score = 4, tag = "Recommended: Heal Staff" },
-            ["holy wand"]          = { score = 5, tag = "BiS: Dual White Magic" },
-            ["nirvana"]            = { score = 5, tag = "BiS: Auto-Limit" },
+            ["staff of wrath"]     = { score = 4, tag = "Ch.2 BiS: Colosseum Staff" },
+            ["rune staff"]         = { score = 4, tag = "Ch.3 BiS: SPR Staff" },
+            ["golden staff"]       = { score = 4, tag = "Ch.4 BiS: SPR Staff" },
+            ["holy wand"]          = { score = 5, tag = "Ch.5 BiS: Dualcast Wand" },
+            ["nirvana"]            = { score = 5, tag = "Ch.7 BiS: Ultimate Staff" },
 
             ["cotton robe"]        = { score = 2, tag = "Basic: Robe" },
             ["silk robe"]          = { score = 3, tag = "Upgrade: Robe" },
             ["sage's robe"]        = { score = 4, tag = "Recommended: Sage Robe" },
             ["white robe"]         = { score = 5, tag = "BiS: SPR Robe" },
             ["robe of lords"]      = { score = 5, tag = "BiS: Endgame Robe" },
+            ["minerva bustier"]    = { score = 5, tag = "Ch.5 BiS: Elem Resist Robe" },
+            ["rainbow robe"]       = { score = 5, tag = "Ch.7 BiS: Ultimate Robe" },
 
             ["silver glasses"]     = { score = 2, tag = "Basic: Accessory" },
             ["angel ring"]         = { score = 4, tag = "Recommended: Auto-Regen" },
+            ["angel earrings"]     = { score = 4, tag = "Ch.2 BiS: Auto-Regen" },
+            ["star pendant"]       = { score = 3, tag = "Ch.1 BiS: Poison Immune" },
+            ["fairy ring"]         = { score = 4, tag = "Ch.3 BiS: Status Immune" },
             ["rosary"]             = { score = 4, tag = "Recommended: SPR+" },
             ["ribbon"]             = { score = 5, tag = "BiS: Status Immune" },
             ["soul ring"]          = { score = 4, tag = "Recommended: MP/SPR" },
@@ -238,17 +253,26 @@ local CHAR_PROFILES = {
             ["heavy wrench"]       = { score = 4, tag = "Recommended: Wrench" },
             ["hammer"]             = { score = 3, tag = "Upgrade: Hammer" },
             ["thor's hammer"]      = { score = 5, tag = "BiS: Thunder Hammer" },
+            ["battle hammer"]      = { score = 4, tag = "Ch.4 BiS: Heavy Hammer" },
+            ["mighty hammer"]      = { score = 4, tag = "Ch.6 BiS: Hammer" },
+            ["gigantaxe"]          = { score = 5, tag = "Ch.7 BiS: Grand Axe" },
             ["t.r.n.d."]           = { score = 5, tag = "BiS: Signature Gun" },
 
             ["leather vest"]       = { score = 2, tag = "Basic: Vest" },
             ["miner's gear"]       = { score = 3, tag = "Upgrade: Gear" },
             ["engineer's suit"]    = { score = 4, tag = "Recommended: Suit" },
             ["machinist's jacket"] = { score = 5, tag = "BiS: Break Jacket" },
+            ["mechanic overalls"]  = { score = 3, tag = "Ch.4 BiS: Overalls" },
+            ["power vest"]         = { score = 4, tag = "Ch.6 BiS: ATK Vest" },
+            ["grand armor"]        = { score = 5, tag = "Ch.7 BiS: Grand Armor" },
 
             ["goggles"]            = { score = 2, tag = "Basic: Goggles" },
             ["speed belt"]         = { score = 4, tag = "Recommended: Speed" },
             ["hermes boots"]       = { score = 5, tag = "BiS: Turn Priority" },
             ["thief's bracer"]     = { score = 5, tag = "BiS: 100% Steal Rate" },
+            ["champion's belt"]    = { score = 5, tag = "Ch.6 BiS: ATK/DEF+20%" },
+            ["titan's bangle"]     = { score = 4, tag = "Ch.4 BiS: HP Bangle" },
+            ["muscle belt"]        = { score = 4, tag = "Ch.4 BiS: HP Belt" },
 
             ["edgar"]              = { score = 5, tag = "BiS: Tools Master" },
             ["cid"]                = { score = 5, tag = "BiS: Machine Power" },
@@ -272,6 +296,15 @@ local CHAR_PROFILES = {
         gear = {
             ["tome of secrets"]    = { score = 4, tag = "Recommended: Grimoire" },
             ["scholarly book"]     = { score = 5, tag = "BiS: Grimoire" },
+            ["scholar's book"]    = { score = 4, tag = "Ch.5 BiS: Scholar Book" },
+            ["platinum staff"]     = { score = 5, tag = "Ch.5 BiS: High SPR Staff" },
+            ["scholar's robe"]    = { score = 4, tag = "Ch.5 BiS: Scholar Robe" },
+            ["siren's robe"]      = { score = 5, tag = "Ch.7 BiS: Water/Dark Robe" },
+            ["hermes sandals"]     = { score = 5, tag = "Ch.5 BiS: Auto-Haste" },
+            ["sprint shoes"]       = { score = 4, tag = "Ch.5 BiS: Turn Speed" },
+            ["barrier ring"]       = { score = 4, tag = "Ch.5 BiS: M.DEF" },
+            ["victoria"]           = { score = 5, tag = "Ch.5 BiS: Buff Duration" },
+            ["aileen"]             = { score = 5, tag = "Ch.5 BiS: Turn Order" },
             ["tactician's robe"]   = { score = 5, tag = "BiS: Tactician Robe" },
             ["strategist's glasses"]= { score = 5, tag = "BiS: MP Regen" },
             ["hope"]               = { score = 5, tag = "BiS: Synergist" },
@@ -288,6 +321,16 @@ local CHAR_PROFILES = {
         gear = {
             ["thunder rod"]        = { score = 4, tag = "Recommended: Rod" },
             ["storm wand"]         = { score = 5, tag = "BiS: Thunder Wand" },
+            ["wizard's rod"]      = { score = 4, tag = "Ch.5 BiS: High MAG Rod" },
+            ["stardust rod"]       = { score = 5, tag = "Ch.6 BiS: Astral Rod" },
+            ["omnirod"]            = { score = 5, tag = "Ch.7 BiS: Ultimate Rod" },
+            ["black robe"]         = { score = 4, tag = "Ch.5 BiS: MAG Robe" },
+            ["lordly robe"]        = { score = 5, tag = "Ch.7 BiS: MAG/SPR Robe" },
+            ["hero ring"]          = { score = 4, tag = "Ch.5 BiS: MAG+10%" },
+            ["hero's ring"]       = { score = 4, tag = "Ch.5 BiS: MAG+10%" },
+            ["magistral crest"]    = { score = 5, tag = "Ch.7 BiS: MAG/SPR+30%" },
+            ["terra"]              = { score = 5, tag = "Ch.5 BiS: Magic Scaling" },
+            ["clive"]              = { score = 5, tag = "Ch.5 BiS: Fire/Lightning" },
             ["magician's robe"]    = { score = 4, tag = "Recommended: Robe" },
             ["celestial robe"]     = { score = 5, tag = "BiS: MAG Robe" },
             ["earrings"]           = { score = 4, tag = "Recommended: MAG+" },
@@ -306,6 +349,15 @@ local CHAR_PROFILES = {
         gear = {
             ["revolver"]           = { score = 4, tag = "Recommended: Gun" },
             ["sniper rifle"]       = { score = 5, tag = "BiS: Rifle" },
+            ["silver rifle"]       = { score = 3, tag = "Ch.6 BiS: Sniper Rifle" },
+            ["mythril gun"]        = { score = 4, tag = "Ch.6 BiS: Gun" },
+            ["quicksilver"]        = { score = 5, tag = "Ch.7 BiS: Sniper Rifle" },
+            ["romandan pistol"]    = { score = 5, tag = "Ch.7 BiS: Dual Handgun" },
+            ["corsair coat"]       = { score = 4, tag = "Ch.6 BiS: Corsair Coat" },
+            ["brave suit"]         = { score = 5, tag = "Ch.7 BiS: Crit Body Armor" },
+            ["desch's earring"]   = { score = 5, tag = "Ch.7 BiS: ATK+45" },
+            ["hyper wrist"]        = { score = 4, tag = "Ch.6 BiS: ATK+30" },
+            ["amelia"]             = { score = 5, tag = "Ch.6 BiS: Gun Mastery" },
             ["corsair jacket"]     = { score = 5, tag = "BiS: Crit Jacket" },
             ["bandana"]            = { score = 4, tag = "Recommended: Crit" },
             ["vincent"]            = { score = 5, tag = "BiS: Gunner" },
@@ -319,6 +371,16 @@ local CHAR_PROFILES = {
         roleTag = "Saboteur",
         gear = {
             ["demon rod"]          = { score = 5, tag = "BiS: Dark Rod" },
+            ["demon's rod"]       = { score = 5, tag = "Ch.6 BiS: Demon Rod" },
+            ["lilith rod"]         = { score = 4, tag = "Ch.5 BiS: Dark Rod" },
+            ["stardust rod"]       = { score = 5, tag = "Ch.6 BiS: Astral Rod" },
+            ["omnirod"]            = { score = 5, tag = "Ch.7 BiS: Ultimate Rod" },
+            ["black robe"]         = { score = 4, tag = "Ch.5 BiS: Robe" },
+            ["lordly robe"]        = { score = 5, tag = "Ch.7 BiS: Endgame Robe" },
+            ["siren's robe"]      = { score = 5, tag = "Ch.7 BiS: Water/Dark Robe" },
+            ["earrings"]           = { score = 4, tag = "Ch.5 BiS: MAG+20%" },
+            ["magistral crest"]    = { score = 5, tag = "Ch.7 BiS: MAG+30%" },
+            ["colossal shantotto"] = { score = 5, tag = "Ch.5 BiS: Ancient Magic" },
             ["dark robe"]          = { score = 5, tag = "BiS: Dark Robe" },
             ["skull ring"]         = { score = 4, tag = "Recommended: MAG" },
             ["diabolos"]           = { score = 5, tag = "BiS: Dark Esper" },
@@ -408,9 +470,16 @@ local function getItemData(rawItemBase, charName)
 
     -- 1. Exact or normalized table lookup
     if prof.gear then
-        local entry = prof.gear[rawItemBase] or prof.gear[norm]
+        local noApos = norm:gsub("'", ""):gsub("%-", " ")
+        local entry = prof.gear[rawItemBase] or prof.gear[norm] or prof.gear[noApos]
         if entry then
             return entry.score or 0, entry.tag
+        end
+        for k, v in pairs(prof.gear) do
+            local cleanK = k:gsub("'", ""):gsub("%-", " ")
+            if cleanK == noApos or cleanK == norm then
+                return v.score or 0, v.tag
+            end
         end
     end
 
