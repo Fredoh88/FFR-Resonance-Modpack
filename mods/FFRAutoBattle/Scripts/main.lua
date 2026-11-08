@@ -1057,6 +1057,26 @@ end
 
 -- Role Mastery Bonus: Auto-loads and prioritizes mastered abilities tailored to each character's specific role
 -- Supports support best in long fights & blast dmg in short fights; Tanks tank; DPS deals max possible damage!
+local function provokeTurnsRemaining()
+    if not Fight or not Fight.claim or not Fight.claim.provoke then return 0 end
+    local roundsElapsed = (Fight.rounds or 0) - (Fight.claim.provokeRound or -99)
+    if roundsElapsed >= 3 then
+        Fight.claim.provoke = false
+        Fight.provokeTurnsRemaining = 0
+        return 0
+    end
+    local turnsLeft = 3 - roundsElapsed
+    if Fight.provokeTurnsRemaining ~= nil then
+        turnsLeft = math.min(turnsLeft, Fight.provokeTurnsRemaining)
+    end
+    if turnsLeft <= 0 then
+        Fight.claim.provoke = false
+        Fight.provokeTurnsRemaining = 0
+        return 0
+    end
+    return turnsLeft
+end
+
 local function roleMasteryBonus(uid, skill, w)
     if not skill or not uid then return 0 end
     local sName = skill.name and skill.name:lower() or ""
@@ -1096,28 +1116,45 @@ local function roleMasteryBonus(uid, skill, w)
             end
         end
 
-        -- Stagger Window: When enemies are broken/stunned, drop tank stance and crush them!
+        -- Stagger Window & Low HP Execute: When enemies are broken or executable (<= 25% HP), drop tank stance and crush them!
+        local anyExecutable = false
+        if w and w.enemies then
+            for _, e in ipairs(w.enemies) do
+                if not e.broken and (e.hp or 1) <= 0.25 and (e.hp or 1) > 0 then
+                    anyExecutable = true
+                    break
+                end
+            end
+        end
+
         if sName:find("infinity drive") or sName:find("crimson onslaught") then
-            bonus = bonus + (anyBroken and 22000 or (isLongFight and 12000 or 15000))
+            bonus = bonus + ((anyBroken or anyExecutable) and 22000 or (isLongFight and 12000 or 15000))
         elseif sName:find("firaga blade") or sName:find("firaja blade") or sName:find("blazing") or sName:find("fire blade") then
-            bonus = bonus + (bossCharging and 18000 or (anyBroken and 14000 or 11000))
+            bonus = bonus + (bossCharging and 18000 or ((anyBroken or anyExecutable) and 14000 or 11000))
         elseif sName:find("tackle") or sName:find("counter") or sName:find("arms akimbo") or sName:find("heavy strike") then
-            bonus = bonus + (anyBroken and 2000 or 9000)
+            bonus = bonus + ((anyBroken or anyExecutable) and 12000 or 9000)
         -- Defensive Barriers: Critical mitigation when holding aggro or when boss charges danger moves
         elseif sName:find("phalanx") or sName:find("iron wall") or sName:find("royal guard") or sName:find("sentinel") then
             bonus = bonus + ((bossCharging or approachingDangerPhase) and 20000 or (isLongFight and 15000 or 5000))
         -- Provoke / Taunt / Cover: In long fights, lock down aggro! In short fights, peel if party hurt
         elseif sName:find("provoke") or sName:find("taunt") or sName:find("roar") or sKind == "provoke" or sKind == "cover" then
-            local partyHurt = false
-            if w and w.allies then
-                for _, a in ipairs(w.allies) do
-                    if not a.dead and (a.hp or 1) < 0.70 then partyHurt = true break end
-                end
-            end
-            if isLongFight then
-                bonus = bonus + (anyBroken and 1000 or 19000) -- Top priority in long/boss fights while boss is active!
+            local turnsLeft = provokeTurnsRemaining()
+            if turnsLeft >= 1 then
+                -- CRITICAL SAFETY LOCK: NEVER recast Provoke if any enemy still has >= 1 turn of Provoke active!
+                -- Completely prevents Rain from wasting an action refreshing provoke when 1 turn remains.
+                bonus = bonus - 50000
             else
-                bonus = bonus + (partyHurt and 12000 or 1000)  -- On short fights, peel only if allies take heat
+                local partyHurt = false
+                if w and w.allies then
+                    for _, a in ipairs(w.allies) do
+                        if not a.dead and (a.hp or 1) < 0.70 then partyHurt = true break end
+                    end
+                end
+                if isLongFight then
+                    bonus = bonus + (anyBroken and 1000 or 19000) -- Top priority in long/boss fights while boss is active!
+                else
+                    bonus = bonus + (partyHurt and 12000 or 1000)  -- On short fights, peel only if allies take heat
+                end
             end
         end
 
@@ -4366,25 +4403,22 @@ local function turn(uid, skills, w, phase)
     -- 3. On Bosses: NEVER provoke unless an ally is in mortal danger (< 40% HP) and boss is active.
     -- 4. On Swarms (2+ enemies): Only provoke if allies are wounded (< 60% HP) and Rain is healthy (> 50% HP).
     -- Strict Tank Provoke / Threat Control:
+    -- Mathematical Rules:
+    -- 1. NEVER provoke if enemies are staggered (they cannot attack!).
+    -- 2. NEVER recast Provoke if any active enemy or party already has >= 1 turn of Provoke remaining!
+    --    Provoke lasts 3 full rounds (3 -> 2 -> 1 -> expires at 0).
+    --    Rain must NEVER waste an action refreshing it when 1 turn remains.
+    -- 3. On Bosses: Establish on turn 1, then ONLY re-provoke once aggro has completely expired (0 turns left).
+    -- 4. On Swarms (2+ enemies): Only provoke if squishy allies are hurt (< 70% HP) AND Provoke has expired (0 turns left).
+    local turnsLeft = provokeTurnsRemaining()
     local needProvoke = false
-    if isDesignatedTank and anyEnemyActive and not allEnemiesStaggered and myHpRatio >= 0.40 then
+    if turnsLeft <= 0 and isDesignatedTank and anyEnemyActive and not allEnemiesStaggered and myHpRatio >= 0.40 then
         if isLongFight then
-            -- On Bosses & Long Fights: Tank must establish and MAINTAIN aggro!
-            -- Provoke on turn 1, or refresh if aggro lapsed (every 3 rounds or 8 actions)
-            local actionsSinceProvoke = #(Fight.actions or {}) - (Fight.lastProvokeAction or -99)
-            local roundsSinceProvoke = (Fight.rounds or 0) - (Fight.claim.provokeRound or -99)
-            needProvoke = (not Fight.claim.provoke)
-                or (roundsSinceProvoke >= 3)
-                or (actionsSinceProvoke >= 8)
-                or (allyInDanger and lowestAllyHp < 0.60)
+            -- On Bosses & Long Fights: Tank must establish and maintain aggro once completely expired
+            needProvoke = not (Fight.claim and Fight.claim.provoke)
         else
-            -- On short mob swarms: Provoke only if squishy allies are taking heat (< 70% HP)
-            local actionsSinceProvoke = #(Fight.actions or {}) - (Fight.lastProvokeAction or -99)
-            needProvoke = (lowestAllyHp < 0.70 or anyAllyHurt) and (
-                (not Fight.claim.provoke)
-                or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 3)
-                or (actionsSinceProvoke >= 8)
-            )
+            -- On short mob swarms: Provoke only if squishy allies are taking heat (< 70% HP) and Provoke has expired
+            needProvoke = (lowestAllyHp < 0.70 or anyAllyHurt) and not (Fight.claim and Fight.claim.provoke)
         end
     end
 
@@ -4430,6 +4464,7 @@ local function turn(uid, skills, w, phase)
             if choice then
                 Fight.claim.provoke = true
                 Fight.claim.provokeRound = Fight.rounds or 0
+                Fight.provokeTurnsRemaining = 3
                 Fight.lastProvokeAction = #(Fight.actions or {})
                 return choice
             end
@@ -5178,7 +5213,7 @@ local function ensureBattle()
     Fight.prevHit = nil
     Fight.building = nil
     Fight.kits = {}
-    Fight.claim = { heal = {}, revive = {}, hone = {}, ether = {}, scan = {}, steal = {}, etherRound = false, guard = false, esper = false, lb = false, provoke = false, provokeRound = -99 }
+    Fight.claim = { heal = {}, revive = {}, hone = {}, ether = {}, scan = {}, steal = {}, etherRound = false, guard = false, esper = false, lb = false, provoke = false, provokeRound = -99, provokeTurnsRemaining = 0 }
     Fight.lastProvokeAction = -99
     Fight.learnedAffinity = Fight.learnedAffinity or {}
     Fight.debuffOn, Fight.debuffSeen, Fight.debuffTold = {}, {}, {}
@@ -5379,7 +5414,15 @@ local function noteRound(uid)
             Fight.claim.heal = {}
             Fight.claim.ether = {}
             Fight.claim.etherRound = false
-            Fight.claim.provoke = false
+            -- Decrement Provoke remaining turns with each completed round:
+            if Fight.provokeTurnsRemaining and Fight.provokeTurnsRemaining > 0 then
+                Fight.provokeTurnsRemaining = Fight.provokeTurnsRemaining - 1
+            end
+            local roundsElapsed = (Fight.rounds or 0) - (Fight.claim.provokeRound or -99)
+            if (Fight.provokeTurnsRemaining or 0) <= 0 or roundsElapsed >= 3 then
+                Fight.claim.provoke = false
+                Fight.provokeTurnsRemaining = 0
+            end
         end
         Fight.afterBonus = false
     end
@@ -5699,6 +5742,7 @@ local function noteHand(v)
     if use == "provoke" then
         Fight.claim.provoke = true
         Fight.claim.provokeRound = Fight.rounds or 0
+        Fight.provokeTurnsRemaining = 3
         Fight.lastProvokeAction = #(Fight.actions or {})
     end
     if skill and (skill.attr == ATTR.SUMMON) then markSummon(skill) end
