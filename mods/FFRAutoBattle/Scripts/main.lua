@@ -6053,7 +6053,7 @@ local function pollTriggers()
         return (now and not was) and true or false, now
     end
     -- Gamepad_Special_Left (View button) unintercepted
-    if Highlighter and not Fight.active then Highlighter.tick() end
+    -- Overworld tick removed from 16ms controller poll; gameLoop(1200) handles it
 
     local r3Combat = down("Gamepad_RightThumbstick")
     local r3CombatRose

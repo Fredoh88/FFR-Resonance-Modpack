@@ -783,6 +783,8 @@ end
 -- signal FFR_BattleSwap logs as "battle over", seconds before that teardown).
 -- CPP_BtlManager.m_BattleLevelList was tried first: it is empty in normal battles.
 local function inBattle()
+    local okU, u = pcall(function() return FindFirstOf("CPP_BtlUnit") end)
+    if not (okU and u and valid(u)) then return false end
     for _, p in ipairs(FindAllOf("CPP_BtlUnitParameter") or {}) do
         if valid(get(p, "m_pOwnerBtlUnit")) then return true end
     end

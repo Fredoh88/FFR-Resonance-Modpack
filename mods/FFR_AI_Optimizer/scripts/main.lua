@@ -42,7 +42,7 @@ local function ApplyVisualFixes(showToast)
     pcall(function()
         -- Ultra-Crisp Pixel Art Clarity & HD-2D Definition:
         ExecuteConsoleCommand("r.MaxAnisotropy 16")
-        ExecuteConsoleCommand("r.MipMapLodBias -1.0")       -- Pulls highest-res sprite mip-levels, eliminating blur
+        ExecuteConsoleCommand("r.MipMapLodBias 0")       -- Pulls highest-res sprite mip-levels, eliminating blur
         ExecuteConsoleCommand("r.Tonemapper.Sharpen 1.75")  -- Razor-sharp pixel contours & defined character edges
         ExecuteConsoleCommand("r.TemporalAA.Sharpness 1.4") -- Reduces TAA/TSR temporal pixel smearing
         ExecuteConsoleCommand("r.TemporalAAFilterSize 0.75")-- Tighter AA filter radius to stop sprite bleeding
@@ -50,7 +50,7 @@ local function ApplyVisualFixes(showToast)
         ExecuteConsoleCommand("r.DepthOfFieldQuality 0")     -- Eliminates depth-of-field focal blur on sprites
         ExecuteConsoleCommand("r.SceneColorFringeQuality 0") -- Eliminates chromatic aberration / fringe blurring
         ExecuteConsoleCommand("r.FilmGrain 0")               -- Eliminates noisy grain over pixel sprites
-        ExecuteConsoleCommand("r.ScreenPercentage 125")      -- 125% internal super-sampling for tack-sharp pixel definition
+        ExecuteConsoleCommand("r.ScreenPercentage 100")      -- 125% internal super-sampling for tack-sharp pixel definition
     end)
     print("[FFR QoL] Applied Ultra-Crisp Pixel Art & Visual Definition Fixes.")
     if showToast and ShowSpeedToast then
@@ -209,7 +209,11 @@ local function GetPlayerController()
     return nil
 end
 
+local cachedPawn = nil
 local function GetPlayerPawn()
+    if cachedPawn and cachedPawn:IsValid() then
+        return cachedPawn
+    end
     local pc = GetPlayerController()
     if not pc then return nil end
     local pawn = nil
@@ -217,7 +221,8 @@ local function GetPlayerPawn()
         pawn = pc.Pawn or pc.Character or pc.AcknowledgedPawn
     end)
     if pawn and pawn:IsValid() then
-        return pawn
+        cachedPawn = pawn
+        return cachedPawn
     end
     return nil
 end

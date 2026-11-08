@@ -816,17 +816,7 @@ function M.tick()
                 break
             end
         end
-        if not inMenu then
-            local allW = FindAllOf("UserWidget")
-            for _, uw in ipairs(allW or {}) do
-                local un = uw:GetClass():GetName()
-                if (un:find("Equip") or un:find("Vision") or un:find("Skill") or un:find("Mastery") or un:find("Enhance"))
-                   and not un:find("Btl") then
-                    inMenu = true
-                    break
-                end
-            end
-        end
+        -- Overworld Fast Path: if no menu widget is open, exit immediately (zero overworld lag)
         if not inMenu then return end
 
         local allTBs = FindAllOf("TextBlock")
