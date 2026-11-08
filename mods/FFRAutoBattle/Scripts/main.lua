@@ -5684,7 +5684,6 @@ end
 -- In-game Build Guide removed (migrated to live Google Doc)
 Hud.buildGuideShow = function(text) end
 local function toggleBuildGuide() end
-end
 
 local advisorVisible = false
 local lastAdvisorHudText = ""
