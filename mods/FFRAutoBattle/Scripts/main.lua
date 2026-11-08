@@ -956,8 +956,33 @@ local function skillTierBonus(skill)
     return 0
 end
 
+local Fight
+
+local function checkIsLongFight(w)
+    if not w then return false end
+    if w.boss then return true end
+    if Fight and Fight.boss then return true end
+    if w.enemies then
+        for _, e in ipairs(w.enemies) do
+            local card = mobOf(e)
+            if card and card.danger and card.danger[1] then return true end
+            local n = e.name and e.name:lower() or ""
+            if n:find("boss") or n:find("trial") or n:find("esper") or n:find("eidolon") or n:find("hunt") or n:find("dread") then
+                return true
+            end
+            local g = (card and tonumber(card.gauge)) or 0
+            if g >= 60 then return true end
+        end
+    end
+    if Fight then
+        if (Fight.rounds or 0) >= 2 then return true end
+        if #(Fight.actions or {}) >= 6 then return true end
+    end
+    return false
+end
+
 -- Role Mastery Bonus: Auto-loads and prioritizes mastered abilities tailored to each character's specific role
--- Fully Vision-Agnostic: Works across ANY equipped Vision, dynamically selecting best role abilities in combat!
+-- Supports support best in long fights & blast dmg in short fights; Tanks tank; DPS deals max possible damage!
 local function roleMasteryBonus(uid, skill, w)
     if not skill or not uid then return 0 end
     local sName = skill.name and skill.name:lower() or ""
@@ -965,7 +990,9 @@ local function roleMasteryBonus(uid, skill, w)
     local sKind = skill.kind or ""
     local bonus = 0
 
-    -- 1. Rain (The Sentinel Vanguard Tank) - Situational Break Vanguard & Threat Mitigator
+    local isLongFight = checkIsLongFight(w)
+
+    -- 1. Rain (The Sentinel Vanguard Tank) - Aggro Anchor, Mitigation & Stagger Cashout
     if who:find("rain") or who:find("cecil") or who:find("wilhelm") or who:find("charlotte") or who:find("snow") or who:find("basch") then
         local bossCharging = false
         local anyBroken = false
@@ -977,25 +1004,32 @@ local function roleMasteryBonus(uid, skill, w)
             end
         end
 
+        -- Stagger Window: When enemies are broken/stunned, drop tank stance and crush them!
         if sName:find("infinity drive") or sName:find("crimson onslaught") then
-            bonus = bonus + (anyBroken and 18000 or 12000) -- Maximum damage during 2.0x break window!
+            bonus = bonus + (anyBroken and 22000 or (isLongFight and 12000 or 15000))
         elseif sName:find("firaga blade") or sName:find("firaja blade") or sName:find("blazing") or sName:find("fire blade") then
-            bonus = bonus + (bossCharging and 16000 or 10500) -- Rapid elemental break interrupt!
+            bonus = bonus + (bossCharging and 18000 or (anyBroken and 14000 or 11000))
         elseif sName:find("tackle") or sName:find("counter") or sName:find("arms akimbo") or sName:find("heavy strike") then
-            bonus = bonus + (anyBroken and 2000 or 9000)      -- Deprioritize weak stagger moves when already broken
+            bonus = bonus + (anyBroken and 2000 or 9000)
+        -- Defensive Barriers: Critical mitigation when holding aggro or when boss charges danger moves
         elseif sName:find("phalanx") or sName:find("iron wall") or sName:find("royal guard") or sName:find("sentinel") then
-            bonus = bonus + (bossCharging and 17000 or 7000)  -- Prioritize defensive barriers when boss charges danger moves!
+            bonus = bonus + (bossCharging and 20000 or (isLongFight and 15000 or 5000))
+        -- Provoke / Taunt / Cover: In long fights, lock down aggro! In short fights, peel if party hurt
         elseif sName:find("provoke") or sName:find("taunt") or sName:find("roar") or sKind == "provoke" or sKind == "cover" then
             local partyHurt = false
             if w and w.allies then
                 for _, a in ipairs(w.allies) do
-                    if not a.dead and (a.hp or 1) < 0.50 then partyHurt = true break end
+                    if not a.dead and (a.hp or 1) < 0.70 then partyHurt = true break end
                 end
             end
-            bonus = bonus + (partyHurt and 8500 or 1000)
+            if isLongFight then
+                bonus = bonus + (anyBroken and 1000 or 19000) -- Top priority in long/boss fights while boss is active!
+            else
+                bonus = bonus + (partyHurt and 12000 or 1000)  -- On short fights, peel only if allies take heat
+            end
         end
 
-    -- 2. Lasswell (Breaker & Critical Boss Finisher) - Situational Critical Execution
+    -- 2. Lasswell & Pure Melee DPS (Critical Boss Finisher & Damage Shredder) - MAXIMUM DAMAGE
     elseif who:find("lasswell") or who:find("cloud") or who:find("sephiroth") or who:find("squall") or who:find("tidus") then
         local anyBroken = false
         local bossCharging = false
@@ -1007,17 +1041,22 @@ local function roleMasteryBonus(uid, skill, w)
             end
         end
 
+        -- Devastating Critical & High-Damage Finisher Moves
         if sName:find("null moon") or sName:find("exorcising") or sName:find("cross%-slash") then
-            bonus = bonus + (anyBroken and 22000 or 9500) -- Devastating critical hit during Stagger!
-        elseif sName:find("dawn frost") or sName:find("blizzaga blade") or sName:find("tranquility") or sName:find("blade torrent") or sName:find("splitter") then
-            bonus = bonus + (bossCharging and 18000 or (anyBroken and 12000 or 8500)) -- Emergency break interrupt
-        elseif sName:find("barrage") or sName:find("transient rite") or sName:find("scan & strike") or sName:find("strike") or sName:find("slash") then
-            bonus = bonus + (anyBroken and 11000 or 7500)
+            bonus = bonus + (anyBroken and 26000 or 15000) -- Maximizes damage output at all times!
+        elseif sName:find("blade torrent") or sName:find("transient rite") or sName:find("barrage") or sName:find("splitter") then
+            -- High damage multi-hit / AoE: In short fights, wipes packs immediately!
+            bonus = bonus + (not isLongFight and 19000 or (anyBroken and 16000 or 11000))
+        elseif sName:find("dawn frost") or sName:find("blizzaga blade") or sName:find("tranquility") then
+            bonus = bonus + (bossCharging and 20000 or (anyBroken and 15000 or 10000)) -- Elemental stagger / interrupt
+        elseif sName:find("scan & strike") or sName:find("strike") or sName:find("slash") then
+            bonus = bonus + (anyBroken and 12000 or 8000)
         end
 
-    -- 3. Fina (Divine Luminary & Healer) - Dynamic Heals & Full Revives
+    -- 3. Fina & Dedicated Healers (Support / Luminary)
+    -- In LONG fights: Full support, heals, revives, buffs!
+    -- In SHORT fights: FOCUS ON DAMAGE (Holy Ray, Banishga, offensive magic)!
     elseif who:find("fina") or who:find("ayaka") or who:find("folka") or who:find("garnet") or who:find("aerith") then
-        -- Check if any party member is wounded (< 50% HP)
         local allyHurt = false
         local allyMortal = false
         if w and w.allies then
@@ -1029,46 +1068,66 @@ local function roleMasteryBonus(uid, skill, w)
                 end
             end
         end
+        -- Revives (Always save fallen allies)
         if sName:find("arise") or sName:find("full raise") then
-            bonus = bonus + 12000 -- 100% Full HP Revive (Guarantees survival)
-        elseif sName:find("curaja") or sName:find("curaga") or sName:find("radiant restoration") then
-            bonus = bonus + (allyMortal and 15000 or (allyHurt and 11000 or 7000))
-        elseif sKind == "heal" and (sName:find("cura") or sName:find("cure")) then
-            bonus = bonus + (allyMortal and 12000 or (allyHurt and 9000 or 5000))
+            bonus = bonus + 22000
         elseif sName:find("raise") or sKind == "revive" then
-            bonus = bonus + 9000
+            bonus = bonus + 13000
+        -- Dynamic Healing: Essential when someone is wounded
+        elseif sName:find("curaja") or sName:find("curaga") or sName:find("radiant restoration") then
+            bonus = bonus + (allyMortal and 24000 or (allyHurt and 17000 or (isLongFight and 8000 or 2000)))
+        elseif sKind == "heal" and (sName:find("cura") or sName:find("cure")) then
+            bonus = bonus + (allyMortal and 19000 or (allyHurt and 14000 or (isLongFight and 5000 or 1000)))
+        -- Party Buffs (Cheer, Protect, Shell, Haste, Regen):
+        -- In LONG fights: Super high priority to harden party!
+        -- In SHORT fights: Deprioritized (mobs will die before buffs are useful)!
         elseif sName:find("cheer") or sName:find("haste") or sName:find("shell") or sName:find("protect") or sName:find("regen") or sKind == "buff" then
-            bonus = bonus + (allyHurt and 3000 or 6500) -- Buffing secondary to healing wounded allies
-        elseif sName:find("holy ray") or sName:find("banishga") or sName:find("dualcast") then
-            bonus = bonus + (allyHurt and 1000 or 6000)
+            bonus = bonus + (allyHurt and 2000 or (isLongFight and 17000 or 1000))
+        -- Offensive Light/Holy Magic (Holy Ray, Banishga, Banish, Dualcast):
+        -- In SHORT fights: FOCUS ON DAMAGE to crush enemy mobs!
+        -- In LONG fights: Secondary to party support
+        elseif sName:find("holy ray") or sName:find("banishga") or sName:find("banish") or sName:find("dualcast") or sKind == "magic" or sKind == "damage" then
+            bonus = bonus + (allyHurt and 1000 or (not isLongFight and 19000 or 6000))
         end
 
     -- 4. Lid (Mechanist & Tactical Debuffer)
+    -- In LONG fights: Shred armor & debuff boss!
+    -- In SHORT fights: Blast with machine AoE damage (T.R.N.D., Mechabo Hammer, March)!
     elseif who:find("lid") or who:find("rikku") or who:find("edgar") then
         if sName:find("armor break") or sName:find("mental break") or sName:find("weapon break") or sKind == "debuff" then
-            bonus = bonus + 9000 -- Armor Shred (-DEF / -SPR)
+            bonus = bonus + (isLongFight and 19000 or 4000) -- Debuffs shine in long fights!
         elseif sName:find("t.r.n.d") or sName:find("march of the machines") or sName:find("mechabo") or sName:find("wrench") or sName:find("hammer") then
-            bonus = bonus + 8000 -- Machine Stagger Bursts
+            bonus = bonus + (not isLongFight and 19000 or 9000) -- AoE machine destruction in short fights!
         end
 
-    -- 5. Sakura & Dark Fina (Mage Nuker & Elemental Catalyst)
+    -- 5. Sakura & Dark Fina (Mage Nuker & Elemental Catalyst) - MAXIMUM DAMAGE
     elseif who:find("sakura") or who:find("dark fina") or who:find("archwitch") or who:find("shantotto") or who:find("rydia") then
+        local anyBroken = false
+        if w and w.enemies then
+            for _, e in ipairs(w.enemies) do
+                if e.broken or (Fight and Fight.down and Fight.down[e.id]) then anyBroken = true break end
+            end
+        end
         if sName:find("dystopia") or sName:find("alterna") or sName:find("thundaja") or sName:find("firaja") or sName:find("blizzaja") or sName:find("flare") or sName:find("meteor") then
-            bonus = bonus + 9500 -- Tier 4 Pinnacle Magic Nukes
+            bonus = bonus + (anyBroken and 28000 or 19000) -- Pinnacle Magic Nukes deal maximum possible damage!
         elseif sName:find("surge") or sName:find("colossal") or sName:find("dualcast") or sName:find("rebel thunder") then
-            bonus = bonus + 8500
+            bonus = bonus + (anyBroken and 22000 or 16000)
         end
 
     -- 6. Nichol (Tactician & Synergist)
+    -- In LONG fights: Bolster / Stance party buffs!
+    -- In SHORT fights: Water / Ice damage nukes!
     elseif who:find("nichol") or who:find("hope") then
-        if sName:find("stance") or sName:find("charge") or sName:find("bolster") or sName:find("dualcast") then
-            bonus = bonus + 8500
+        if sName:find("stance") or sName:find("charge") or sName:find("bolster") then
+            bonus = bonus + (isLongFight and 17000 or 2000)
+        elseif sName:find("water") or sName:find("blizzard") or sName:find("flood") or sName:find("dualcast") or sKind == "magic" or sKind == "damage" then
+            bonus = bonus + (not isLongFight and 18000 or 7000)
         end
 
-    -- 7. Jake (Corsair & Gunner)
+    -- 7. Jake (Corsair & Gunner) - Rapid Burst Fire
     elseif who:find("jake") or who:find("vincent") or who:find("amelia") then
-        if sName:find("quick draw") or sName:find("snipe") or sName:find("bullet") or sName:find("fire") then
-            bonus = bonus + 8500
+        if sName:find("quick draw") or sName:find("snipe") or sName:find("bullet") or sName:find("fire") or sName:find("assault") then
+            bonus = bonus + 18000 -- Maximum gun burst damage
         end
     end
 
@@ -1132,7 +1191,6 @@ local function counterScale(skill, enemy)
     return scale
 end
 
-local Fight
 local unitKit
 -- A friend, a nameless slot, or a body with no HP is not a foe.
 -- The enemy-target list has included the actor. The book also has a Lasswell card at gauge 9999.
@@ -2736,6 +2794,7 @@ local function markDebuff(id, effect)
 end
 
 local function turn(uid, skills, w, phase)
+    local isLongFight = checkIsLongFight(w)
     -- One slot of the round. Care first, then the phase the whole field is in.
     -- Damage is scored against every living gauge, using what earlier slots already claimed.
     w.usedSupport = w.usedSupport or {}
@@ -3649,8 +3708,19 @@ local function turn(uid, skills, w, phase)
                     if not cashing and b == "low" then allowed = ((s.cost or 0) <= 0) or (f >= 3) end
                     if allowed then
                         useful = useful + 1
-                        if cashing then pts = pts + (pow or 0) * f
-                        else pts = pts + gained end
+                        local rawDmg = (pow or 0) * (f > 0 and f or 1)
+                        if cashing then
+                            pts = pts + (rawDmg * 3) + (pow or 0) * f
+                        else
+                            local isDpsUnit = whoStr:find("lasswell") or whoStr:find("cloud") or whoStr:find("sephiroth")
+                                or whoStr:find("sakura") or whoStr:find("dark fina") or whoStr:find("jake")
+                                or whoStr:find("squall") or whoStr:find("tidus")
+                            if not isLongFight or isDpsUnit then
+                                pts = pts + (rawDmg * 5) + (gained * 2)
+                            else
+                                pts = pts + gained + (rawDmg * 0.5)
+                            end
+                        end
                         if f >= 3 then weak = true end
                         if not empty and gained >= remain then finishes = true end
                     end
@@ -4192,18 +4262,25 @@ local function turn(uid, skills, w, phase)
     -- 2. NEVER provoke if Rain can exploit an elemental weakness or shatter a break gauge (breaking is 100% mitigation + 2.0x team DPS).
     -- 3. On Bosses: NEVER provoke unless an ally is in mortal danger (< 40% HP) and boss is active.
     -- 4. On Swarms (2+ enemies): Only provoke if allies are wounded (< 60% HP) and Rain is healthy (> 50% HP).
+    -- Strict Tank Provoke / Threat Control:
     local needProvoke = false
-    if isDesignatedTank and anyEnemyActive and not allEnemiesStaggered and not hasBreakKill and myHpRatio >= 0.50 then
-        if isBoss then
-            -- On Bosses: only provoke if an ally is in mortal danger (< 40% HP)
-            needProvoke = allyInDanger and lowestAllyHp < 0.40 and not Fight.claim.provoke
-        else
-            -- On mob swarms: provoke only if allies are taking heat (< 60% HP) and not provoked recently
+    if isDesignatedTank and anyEnemyActive and not allEnemiesStaggered and myHpRatio >= 0.40 then
+        if isLongFight then
+            -- On Bosses & Long Fights: Tank must establish and MAINTAIN aggro!
+            -- Provoke on turn 1, or refresh if aggro lapsed (every 3 rounds or 8 actions)
             local actionsSinceProvoke = #(Fight.actions or {}) - (Fight.lastProvokeAction or -99)
-            needProvoke = (lowestAllyHp < 0.60) and (
+            local roundsSinceProvoke = (Fight.rounds or 0) - (Fight.claim.provokeRound or -99)
+            needProvoke = (not Fight.claim.provoke)
+                or (roundsSinceProvoke >= 3)
+                or (actionsSinceProvoke >= 8)
+                or (allyInDanger and lowestAllyHp < 0.60)
+        else
+            -- On short mob swarms: Provoke only if squishy allies are taking heat (< 70% HP)
+            local actionsSinceProvoke = #(Fight.actions or {}) - (Fight.lastProvokeAction or -99)
+            needProvoke = (lowestAllyHp < 0.70 or anyAllyHurt) and (
                 (not Fight.claim.provoke)
-                or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 4)
-                or (actionsSinceProvoke >= 10)
+                or ((Fight.rounds or 0) - (Fight.claim.provokeRound or -99) >= 3)
+                or (actionsSinceProvoke >= 8)
             )
         end
     end
@@ -4455,9 +4532,9 @@ local function turn(uid, skills, w, phase)
     end
 
     -- Dedicated Healer & Support Party Buff Routine:
-    -- When party is safe (>= 70% HP), dedicated healers (Fina) and buffers must BUFF the party
-    -- (Cheer, Protect, Shell, Haste, Regen, Barrier) instead of wasting turns on basic physical attacks!
-    if isDedicatedHealer or whoStr:find("nichol") then
+    -- Only in LONG fights should supports spend turns casting ramp-up buffs (Cheer, Protect, Shell, etc.)!
+    -- In short fights, supports focus entirely on DAMAGE to eliminate enemies rapidly!
+    if (isDedicatedHealer or whoStr:find("nichol")) and isLongFight then
         local partyHurtCount = 0
         for _, a in ipairs(w.allies) do
             if not a.dead and (a.hp or 1) < 0.70 then
