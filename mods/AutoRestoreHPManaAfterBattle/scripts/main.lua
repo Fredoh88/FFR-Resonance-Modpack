@@ -175,6 +175,15 @@ end
 
 local cachedBattleManager = nil
 
+local function isEncounterStarting()
+    local ok, active = invoke(
+        "CPP_BFL_Map",
+        "IsDuringEncount"
+    )
+
+    return ok and active == true
+end
+
 local function hasActiveBattleLevels()
     -- Fast exit if not in encounter and not observed
     if not battleObserved and not isEncounterStarting() then
@@ -199,15 +208,6 @@ local function hasActiveBattleLevels()
     return ok
         and type(count) == "number"
         and count > 0
-end
-
-local function isEncounterStarting()
-    local ok, active = invoke(
-        "CPP_BFL_Map",
-        "IsDuringEncount"
-    )
-
-    return ok and active == true
 end
 
 local function isBattleActive()

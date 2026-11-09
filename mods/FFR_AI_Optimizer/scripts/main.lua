@@ -8,18 +8,18 @@
 _G.FFR_QOL = _G.FFR_QOL or {}
 local QoL = _G.FFR_QOL
 
-QoL.SpeedModes = { 750.0, 1250.0, 1850.0, 2500.0 }
+QoL.SpeedModes = { 800.0, 1600.0, 2600.0, 3800.0 }
 QoL.SpeedLabels = {
-    "Normal (750, +25%)",
-    "Fast Sprint (1250, +108%)",
-    "Hyper-Dash (1850, +208%)",
-    "Sonic Hyperspeed (2500, +316%)"
+    "Normal Traversal (800, +33%)",
+    "Fast Sprint (1600, +166%)",
+    "Hyper-Dash (2600, +333%)",
+    "Sonic Warp Hyperspeed (3800, +533%)"
 }
 QoL.SpeedToasts = {
-    "[ SPRINT: Normal Walk (750) ]",
-    "[ >> FAST SPRINT: 1250 Speed (Mount 1625) ]",
-    "[ >>> HYPER-DASH: 1850 Speed (Mount 2400) ]",
-    "[ >>>> SONIC HYPERSPEED: 2500 Speed (Mount 3250) ]",
+    "[ SPRINT: Normal Walk (800) ]",
+    "[ >> FAST SPRINT: 1600 Speed (Mount 2160) ]",
+    "[ >>> HYPER-DASH: 2600 Speed (Mount 3510) ]",
+    "[ >>>> WARP HYPERSPEED: 3800 Speed (Mount 5130) ]",
 }
 QoL.SpeedColors = {
     { R = 0.85, G = 0.85, B = 0.85, A = 1.0 }, -- Normal: Neutral White/Silver
@@ -27,9 +27,9 @@ QoL.SpeedColors = {
     { R = 0.00, G = 0.95, B = 1.00, A = 1.0 }, -- Hyper-Dash: Cyan
     { R = 1.00, G = 0.20, B = 0.85, A = 1.0 }, -- Sonic Hyperspeed: Neon Magenta
 }
-QoL.SpeedIdx = 1
-QoL.SprintActive = false
-QoL.DefaultWalkSpeed = 750.0
+QoL.SpeedIdx = 2
+QoL.SprintActive = true
+QoL.DefaultWalkSpeed = 800.0
 
 print("[FFR QoL v3.8] Initializing Field Sprint & Visible Speed HUD...")
 
@@ -176,25 +176,12 @@ local function UpdateSpeedBadge(duration)
             -- Auto-fades after 1.8 seconds so it never blocks any gameplay area
             SpeedHud.badgeHideTime = os.clock() + (duration or 1.8)
 
-            if QoL.SpeedIdx == 1 then
-                -- Normal walk: Neutral Silver
-                w.text:SetText(FText("[ > NORMAL WALK: 600 ]"))
-                w.text:SetColorAndOpacity({ SpecifiedColor = { R = 0.85, G = 0.85, B = 0.85, A = 1.0 }, ColorUseRule = 0 })
-                w.border:SetBrushColor({ R = 0.03, G = 0.04, B = 0.08, A = 0.85 })
-                w.widget:SetVisibility(3)
-            elseif QoL.SpeedIdx == 2 then
-                -- Fast Sprint: Glowing Gold
-                w.text:SetText(FText("[ >> FAST SPRINT: 950 (+58%) ]"))
-                w.text:SetColorAndOpacity({ SpecifiedColor = { R = 1.0, G = 0.84, B = 0.0, A = 1.0 }, ColorUseRule = 0 })
-                w.border:SetBrushColor({ R = 0.03, G = 0.04, B = 0.08, A = 0.85 })
-                w.widget:SetVisibility(3)
-            elseif QoL.SpeedIdx == 3 then
-                -- Hyper Dash: Vibrant Cyan
-                w.text:SetText(FText("[ >>> HYPER-DASH: 1400 (TURBO +133%) ]"))
-                w.text:SetColorAndOpacity({ SpecifiedColor = { R = 0.0, G = 0.95, B = 1.0, A = 1.0 }, ColorUseRule = 0 })
-                w.border:SetBrushColor({ R = 0.02, G = 0.05, B = 0.10, A = 0.88 })
-                w.widget:SetVisibility(3)
-            end
+            local text = QoL.SpeedToasts[QoL.SpeedIdx] or "[ SPRINT ]"
+            local color = QoL.SpeedColors[QoL.SpeedIdx] or { R = 1.0, G = 1.0, B = 1.0, A = 1.0 }
+            w.text:SetText(FText(text))
+            w.text:SetColorAndOpacity({ SpecifiedColor = color, ColorUseRule = 0 })
+            w.border:SetBrushColor({ R = 0.02, G = 0.04, B = 0.08, A = 0.88 })
+            w.widget:SetVisibility(3)
         end)
     end)
 end
@@ -249,12 +236,17 @@ local function GetPlayerPawns()
             if parent and parent:IsValid() then add(parent) end
         end)
         pcall(function()
-            for _, prop in ipairs({ "MountActor", "Vehicle", "CurrentMount", "RidingPawn", "Chocobo", "Mount" }) do
+            for _, prop in ipairs({ "MountActor", "Vehicle", "CurrentMount", "RidingPawn", "Chocobo", "Mount", "m_RidingChocobo", "m_pChocobo" }) do
                 local v = p[prop]
                 if v and v:IsValid() then add(v) end
             end
         end)
     end
+
+    pcall(function()
+        local ch = FindFirstOf("CPP_MapUnit_Chocobo")
+        if ch and ch:IsValid() then add(ch) end
+    end)
 
     return pawns
 end
@@ -268,18 +260,53 @@ local function ApplySpeedToPawn(pawn, speed, isHyper)
     if not (pawn and pawn:IsValid()) then return false end
     local ok = false
     pcall(function()
-        local cm = pawn.CharacterMovement
+        local cm = pawn.CharacterMovement or pawn.m_pPawnMovementComponent
         if cm and cm:IsValid() then
             cm.MaxWalkSpeed = speed
             cm.MaxCustomMovementSpeed = speed * 1.5
-            cm.MaxAcceleration = math.max(speed * 5.0, 4096.0)
-            cm.BrakingDecelerationWalking = math.max(speed * 4.0, 3072.0)
+            cm.MaxAcceleration = math.max(speed * 6.0, 8192.0)
+            cm.BrakingDecelerationWalking = math.max(speed * 4.0, 4096.0)
             cm.GroundFriction = 8.0
             ok = true
         end
     end)
+    -- Native MapUnit movement properties
     pcall(function()
-        pawn.CustomTimeDilation = isHyper and 1.25 or 1.0
+        pawn.m_MaxRunningSpeed = speed
+        pawn.m_MaxWalkingSpeed = speed
+        pawn.m_MaxJogSpeed = speed
+        pawn.m_Speed = speed
+        ok = true
+    end)
+    -- Native MapUnit methods
+    pcall(function() pawn:SetMaxRunningMoveSpeed(speed, true) end)
+    pcall(function() pawn:SetMaxWalkMoveSpeed(speed) end)
+    pcall(function() pawn:SetMaxRunMoveSpeed(speed) end)
+    -- Chocobo and mount movement scales
+    pcall(function()
+        if pawn.MovementScale ~= nil then
+            pawn.MovementScale = isHyper and 2.5 or 1.8
+        end
+        if pawn.FlyingMovementScale ~= nil then
+            pawn.FlyingMovementScale = isHyper and 2.5 or 1.8
+        end
+    end)
+    pcall(function()
+        local cms = pawn.ChocoboMovementSettings or pawn.ChocoboMaxSpeedSettings or pawn.ChocoboGroundMovementSettings
+        if cms and cms:IsValid() then
+            pcall(function() cms.MaxSpeed = speed end)
+            pcall(function() cms.DashScale = 2.0 end)
+            pcall(function() cms.Speed = speed end)
+        end
+    end)
+    pcall(function()
+        local dilation = 1.0
+        if QoL.SpeedIdx == 4 then
+            dilation = 1.35
+        elseif QoL.SpeedIdx == 3 then
+            dilation = 1.20
+        end
+        pawn.CustomTimeDilation = dilation
     end)
     return ok
 end
@@ -300,7 +327,7 @@ QoL.ToggleSprint = function()
     local toast = QoL.SpeedToasts[QoL.SpeedIdx]
     local color = QoL.SpeedColors[QoL.SpeedIdx]
     QoL.SprintActive = (QoL.SpeedIdx > 1)
-    local isHyper = (QoL.SpeedIdx == 3)
+    local isHyper = (QoL.SpeedIdx >= 3)
 
     local pawns = GetPlayerPawns()
     local updated = 0
@@ -308,16 +335,18 @@ QoL.ToggleSprint = function()
     local charPawn = pc and pc.Pawn
     for _, pawn in ipairs(pawns) do
         local target = currentSpeed
-        if pawn ~= charPawn then
-            target = currentSpeed * 1.30 -- Mounts zoom 30% faster!
+        local isMount = (pawn ~= charPawn) or (pawn.GetName and tostring(pawn:GetName()):lower():find("chocobo"))
+        if isMount then
+            target = currentSpeed * 1.35 -- Mounts zoom 35% faster!
         end
         if ApplySpeedToPawn(pawn, target, isHyper) then
             updated = updated + 1
         end
     end
 
-    -- Show unobtrusive bottom-center speed notification (fades out automatically after 1.8s)
-    UpdateSpeedBadge(1.8)
+    -- Show visible speed toast and bottom-center badge (fades out automatically after 2s)
+    ShowSpeedToast(toast, color)
+    UpdateSpeedBadge(2.0)
 
     print(string.format("[FFR QoL] Outworld Movement: %s (MaxWalkSpeed = %.0f, updated %d player pawn)\n",
         label, currentSpeed, updated))
@@ -404,15 +433,12 @@ LoopInGameThreadWithDelay(50, function()
             local charPawn = pc and pc.Pawn
             for _, pawn in ipairs(pawns) do
                 if pawn and pawn:IsValid() then
-                    local cm = pawn.CharacterMovement
-                    if cm and cm:IsValid() then
-                        local target = currentSpeed
-                        if pawn ~= charPawn then
-                            target = currentSpeed * 1.30 -- Mounts zoom 30% faster!
-                        end
-                        if math.abs(cm.MaxWalkSpeed - target) > 1.0 then
-                            ApplySpeedToPawn(pawn, target, isHyper)
-                        end
+                    local cm = pawn.CharacterMovement or pawn.m_pPawnMovementComponent
+                    local isMount = (pawn ~= charPawn) or (pawn.GetName and tostring(pawn:GetName()):lower():find("chocobo"))
+                    local target = isMount and (currentSpeed * 1.35) or currentSpeed
+                    local curSpeed = cm and cm.MaxWalkSpeed or pawn.m_MaxRunningSpeed or 0
+                    if math.abs(curSpeed - target) > 1.0 then
+                        ApplySpeedToPawn(pawn, target, isHyper)
                     end
                 end
             end
